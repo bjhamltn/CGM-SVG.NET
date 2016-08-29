@@ -22,6 +22,9 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.IO;
 using System.Xml;
+using MathNet.Numerics;
+using MathNet.Numerics.LinearAlgebra;
+
 
 #region JCGM: Used for testing and troble shooting and is not required by the converter.
 using net.sf.jcgm.core;  
@@ -36,9 +39,9 @@ namespace cgm_decoder
     {
 
         #region debug enable console write line of decoded metafile name
-        string filename = "schema01";
+        string filename = "bigcgm03";
         int debug = 0;
-        bool altSet = 1 == 1; 
+        bool altSet = 1 == 0; 
         #endregion
 
         public class LineEdgeType
@@ -157,10 +160,11 @@ namespace cgm_decoder
                 elemParams = new byte[0];
                 points = new List<PointF>();
                 polygonSetFlags = new List<string>();
-                fillColor = strokeColor = characterColor = edgeColor = Color.FromArgb(255, 0, 0, 0);
+                characterColor = fillColor = strokeColor = edgeColor = Color.FromArgb(255, 0, 0, 0);
+                
                 characterHeight = 16;
-                edgeWidth = 0;
-                strokeWidth = 0;
+                edgeWidth = 0.25f;
+                strokeWidth = 0.25f;
                 lineCap = "round";
                 lineJoin = "round";
                 mitreLimit = 0;
@@ -169,7 +173,10 @@ namespace cgm_decoder
 
 
             }
-
+            public void resetColors_fromColorTable()
+            {
+                fillColor = strokeColor = edgeColor = colorTable[0];
+            }
             public int getPrecision_vdc()
             {
                 return vdcType == "real" ? vdc_real_precision : vdc_integer_precision;
@@ -480,6 +487,20 @@ namespace cgm_decoder
 
                 return fillarea[elem_Name] == null ? false : (bool)fillarea[elem_Name];
             }
+
+            public bool isContinuous()
+            {
+                if (polybezier_continuous == 1)
+                {
+                    return false;
+                }
+                else if (polybezier_continuous == 2)
+                {
+                    return true;
+                }
+                return false;            
+            }
+
             #endregion
         }
 
@@ -488,7 +509,7 @@ namespace cgm_decoder
         public Form1()
         {
             #region Sets the location of the file being converted and the location of the output file.
-            string cgmfilename_in = @"C:\Users\795627\Downloads\ata30-cgms\" + filename + ".cgm";
+            string cgmfilename_in = @"C:\Users\795627\Downloads\Reference Files\ata30-cgms\" + filename + ".cgm";
             string cgmfilename_out = @"C:\Users\795627\Desktop\" + filename + ".txt";
             if (altSet)
             {
@@ -534,17 +555,17 @@ namespace cgm_decoder
             
             
             #region JCGM CGM used for testing and tunning
-            //java.io.File cgmFile = new java.io.File(cgmfilename_in);
-            //java.io.DataInputStream input = new java.io.DataInputStream(new java.io.FileInputStream(cgmFile));
-            //net.sf.jcgm.core.CGM cgm = new CGM();
-            //cgm.read(input);            
-            //List<Command> commands = cgm.getCommands().toArray().Cast<Command>().ToList();
-            //StreamWriter sw = new StreamWriter(cgmfilename_out, false);
-            //foreach (Command cmd in commands)
-            //{
-            //    sw.WriteLine(cmd.toString());
-            //}
-            //sw.Close();            
+            java.io.File cgmFile = new java.io.File(cgmfilename_in);
+            java.io.DataInputStream input = new java.io.DataInputStream(new java.io.FileInputStream(cgmFile));
+            net.sf.jcgm.core.CGM cgm = new CGM();
+            cgm.read(input);
+            List<Command> commands = cgm.getCommands().toArray().Cast<Command>().ToList();
+            StreamWriter sw = new StreamWriter(cgmfilename_out, false);
+            foreach (Command cmd in commands)
+            {
+                sw.WriteLine(cmd.toString());
+            }
+            sw.Close();            
             #endregion
 
             BinaryReader br = new BinaryReader(new FileStream(cgmfilename_in, FileMode.Open, FileAccess.Read));
@@ -1027,7 +1048,61 @@ namespace cgm_decoder
                 }
                 #endregion
             }
+            else if (elemName == "ELLIPTICAL ARC")
+            {
 
+                #region MyRegion
+                int vdc_cnt = 3;
+                int precision = Cgm_Elements.Last().getPrecision_vdc();
+                int byteLen = precision / 8;
+                while (vdc_cnt > 0)
+                {
+                    buffer = new byte[byteLen];
+                    br.Read(buffer, 0, buffer.Length);
+
+                    float px = 0;
+                    px = Cgm_Elements.Last().bytes_getValue(buffer, precision);
+
+                    buffer = new byte[byteLen];
+                    br.Read(buffer, 0, buffer.Length);
+                    float py = 0;
+                    py = Cgm_Elements.Last().bytes_getValue(buffer, precision);
+
+                    Cgm_Elements.Last().points.Add(new PointF()
+                    {
+                        X = px,
+                        Y = py
+                    });
+                    vdc_cnt = vdc_cnt - 1;
+                }
+
+                vdc_cnt = 2;
+
+                while (vdc_cnt > 0)
+                {
+                    float px, py;
+
+                    buffer = new byte[byteLen];
+
+                    br.Read(buffer, 0, buffer.Length);
+
+                    px = Cgm_Elements.Last().bytes_getValue(buffer, precision);
+
+                    buffer = new byte[byteLen];
+                    br.Read(buffer, 0, buffer.Length);
+                    py = Cgm_Elements.Last().bytes_getValue(buffer, precision);
+
+
+                    Cgm_Elements.Last().points.Add(new PointF()
+                    {
+                        X = px,
+                        Y = py
+                    });
+                    vdc_cnt = vdc_cnt - 1;
+                }
+                #endregion
+                
+            }
             else if (elemName == "ELLIPTICAL ARC CLOSE")
             {
                 #region MyRegion
@@ -1099,7 +1174,7 @@ namespace cgm_decoder
                 #region MyRegion
                 int p = Cgm_Elements.Last().getPrecision();
                 int buf_len = p / 8;
-                int words_cnt = 3;
+                int words_cnt = paramLen / (2 * buf_len);
                 while (words_cnt > 0)
                 {
                     buffer = new byte[buf_len];
@@ -1118,6 +1193,44 @@ namespace cgm_decoder
 
                     words_cnt = words_cnt - 1;
                 }
+                PointF[] pts = Cgm_Elements.Last().points.ToArray();
+                PointF V1 = PointF.Subtract(pts[1], new SizeF(pts[0].X, pts[0].Y));
+                PointF V2 = PointF.Subtract(pts[2], new SizeF(pts[0].X, pts[0].Y));
+
+                float[,] x = {
+                              { V1.X, V2.X },
+                              { V1.Y, V2.Y }
+                             };
+                Matrix<float> M = Matrix<float>.Build.DenseOfArray(x);
+                Matrix<float> C = Matrix<float>.Build.DenseOfArray(new float[,] { { pts[0].X }, { pts[0].Y } });
+                Matrix<float> P = Matrix<float>.Build.DenseOfArray(new float[,] { { .25f  } , {.25f } });
+
+                Matrix<float> PT =(  M * P ) + C;
+
+                float  b, m;
+                double a;
+                float p_dist = (float)distance_180(pts[0], new PointF(PT[0, 0], PT[1, 0]), out a, out m, out b);
+                
+                int  sign_x = Math.Sign( Math.Cos( 360 + a ));
+                int sign_y = Math.Sign(Math.Sin(360 + a));
+
+                distance_180(pts[0], pts[1], out a, out m, out b);
+                a = a * (Math.PI / 180);
+                float xx = (float)(p_dist * Math.Cos(a)) + pts[0].X;
+                float yy = (float)(p_dist * Math.Sin(a)) + pts[0].Y ;
+                Cgm_Elements.Last().points.Add(new PointF(xx, yy));
+
+
+                distance_180(pts[0], pts[2], out a, out m, out b);
+                a = a * (Math.PI / 180);
+                xx = (float)(p_dist * Math.Cos(a)) + pts[0].X;
+                yy = (float)(p_dist * Math.Sin(a)) + pts[0].Y;
+                Cgm_Elements.Last().points.Add(new PointF((float)(p_dist * Math.Cos(a)) + pts[0].X, (float)(p_dist * Math.Sin(a)) + pts[0].Y));
+
+
+                pts = Cgm_Elements.Last().points.ToArray();
+
+                
                 #endregion
 
             }
@@ -1697,6 +1810,7 @@ namespace cgm_decoder
                         edgeType = edge_t.ToString();
                         break;
                 }
+                Cgm_Elements.Last().strokeWidth = 0.5f;
                 Cgm_Elements.Last().lineType = edge_t.ToString();
                 #endregion
             }
@@ -1803,8 +1917,10 @@ namespace cgm_decoder
                 else if (Cgm_Elements.Last().colorModel == "CMYK")
                 {
                     int[] idx_breaks = Enumerable.Range(0, buffer.Length / 4).Select(x => x * 4).ToArray();
-                    Color[] sdasda = Cgm_Elements.Last().colorTable = idx_breaks.Select(i => Color.FromArgb(buffer[i + 3], buffer[i], buffer[i + 1], buffer[i + 2])).ToArray();
+                    Color[] sdasda = Cgm_Elements.Last().colorTable = idx_breaks.Select(i => Color.FromArgb(buffer[i + 3], buffer[i], buffer[i + 1], buffer[i + 2])).ToArray();                
                 }
+                //Cgm_Elements.Last().resetColors_fromColorTable();
+
                 #endregion
             }
             else if (elemName == "CELL ARRAY")
@@ -2219,61 +2335,7 @@ namespace cgm_decoder
                 Cgm_Elements.Last().colourSelectionMode = buffer[1] == 0 ? "indexed colour mode" : "direct colour mode";
                 #endregion
             }
-            else if (elemName == "ELLIPTICAL ARC")
-            {
-
-                #region MyRegion
-                int vdc_cnt = 3;
-                int precision = Cgm_Elements.Last().getPrecision_vdc();
-                int byteLen = precision / 8;
-                while (vdc_cnt > 0)
-                {
-                    buffer = new byte[byteLen];
-                    br.Read(buffer, 0, buffer.Length);
-
-                    float px = 0;
-                    px = Cgm_Elements.Last().bytes_getValue(buffer, precision);
-
-                    buffer = new byte[byteLen];
-                    br.Read(buffer, 0, buffer.Length);
-                    float py = 0;
-                    py = Cgm_Elements.Last().bytes_getValue(buffer, precision);
-
-                    Cgm_Elements.Last().points.Add(new PointF()
-                    {
-                        X = px,
-                        Y = py
-                    });
-                    vdc_cnt = vdc_cnt - 1;
-                }
-
-                vdc_cnt = 2;
-
-                while (vdc_cnt > 0)
-                {
-                    float px, py;
-
-                    buffer = new byte[byteLen];
-
-                    br.Read(buffer, 0, buffer.Length);
-
-                    px = Cgm_Elements.Last().bytes_getValue(buffer, precision);
-
-                    buffer = new byte[byteLen];
-                    br.Read(buffer, 0, buffer.Length);
-                    py = Cgm_Elements.Last().bytes_getValue(buffer, precision);
-
-
-                    Cgm_Elements.Last().points.Add(new PointF()
-                    {
-                        X = px,
-                        Y = py
-                    });
-                    vdc_cnt = vdc_cnt - 1;
-                }
-                #endregion
-
-            }
+           
 
             else if (paramLen > 0)
             {
@@ -2442,6 +2504,49 @@ namespace cgm_decoder
      
                     #endregion
                 }
+                else if (cgmElement.elem_Name == ("DISJOINT POLYLINE"))
+                {
+                    #region MyRegion
+                    int pt_idx = 0;
+                    StringBuilder polyline = new StringBuilder();
+
+                    polyline.Append(" ");
+
+                    if (!isFigure || path.Attributes["d"] == null)
+                    {
+                        path = cgm_svg.CreateElement("path");
+                        cgm_svg.DocumentElement.AppendChild(path);
+                        path.Attributes.Append(cgm_svg.CreateAttribute("elem_name")).Value = cgmElement.elem_Name;
+                        path.Attributes.Append(cgm_svg.CreateAttribute("d"));
+                        path.Attributes.Append(cgm_svg.CreateAttribute("idx")).Value = cgm_idx.ToString();
+                    }
+
+                    foreach (PointF pt in cgmElement.points)
+                    {
+
+                        if (pt_idx == 0)
+                        {
+                            polyline.Append(String.Format("M {0} {1} ", pt.X, pt.Y));
+                        }
+                        else
+                        {
+                            polyline.Append(String.Format("{0} {1} ", pt.X, pt.Y));
+                        }
+                        if (pt_idx == 1)
+                        {
+                            pt_idx = 0;
+                        }
+                        else
+                        {
+                            pt_idx++;
+                        }
+                        path.Attributes["d"].Value += polyline.ToString();
+                        polyline = new StringBuilder();
+                    }
+
+
+                    #endregion
+                }
                 else if (cgmElement.elem_Name == ("POLYBEZIER"))
                 {
                     #region MyRegion
@@ -2456,12 +2561,19 @@ namespace cgm_decoder
                         path.Attributes.Append(cgm_svg.CreateAttribute("d"));
                         path.Attributes.Append(cgm_svg.CreateAttribute("idx")).Value = cgm_idx.ToString();
                     }
-
+                    bool continous = cgmElement.isContinuous();
                     foreach (PointF pt in cgmElement.points)
                     {
                         if (pt_idx == 0 && isFigure && path.Attributes["d"].Value != "")
                         {
-                            polybezier.Append(String.Format("L {0} {1} C ", pt.X, pt.Y));
+                            if (continous)
+                            {
+                                polybezier.Append(String.Format("L {0} {1} C ", pt.X, pt.Y));
+                            }
+                            else
+                            {
+                                polybezier.Append(String.Format("M {0} {1} C ", pt.X, pt.Y));
+                            }
                         }                   
                         else if (pt_idx == 0)
                         {
@@ -2471,7 +2583,21 @@ namespace cgm_decoder
                         {
                             polybezier.Append(String.Format("{0} {1} ", pt.X, pt.Y));
                         }
-                        pt_idx++;
+
+
+                        if (continous)
+                        {
+                            pt_idx++;
+                        }
+                        else if (!continous && pt_idx == 3)
+                        {
+                            pt_idx = 0;
+                        }
+                        else
+                        {
+                            pt_idx++;
+                        }
+                        
                         path.Attributes["d"].Value += polybezier.ToString();
                         polybezier = new StringBuilder();
                         
@@ -3123,6 +3249,25 @@ namespace cgm_decoder
                     
                     #endregion
                 }
+                else if (cgmElement.elem_Name == "PARABOLIC ARC") 
+                {
+                    if (!isFigure || path.Attributes["d"] == null)
+                    {
+                        path = cgm_svg.CreateElement("path");
+                        cgm_svg.DocumentElement.AppendChild(path);
+                        path.Attributes.Append(cgm_svg.CreateAttribute("elem_name")).Value = cgmElement.elem_Name;
+                        path.Attributes.Append(cgm_svg.CreateAttribute("idx")).Value = cgm_idx.ToString();
+                        path.Attributes.Append(cgm_svg.CreateAttribute("d")).Value = "";
+                        path.Attributes.Append(cgm_svg.CreateAttribute("idx")).Value = cgm_idx.ToString();
+                    }
+                    StringBuilder arc = new StringBuilder();
+                    arc.Append(string.Format("M {0} {1} ", cgmElement.points[1].X, cgmElement.points[1].Y));
+                    arc.Append(string.Format("C {0} {1} ", cgmElement.points[3].X, cgmElement.points[3].Y));
+                    arc.Append(string.Format("{0} {1} ", cgmElement.points[4].X, cgmElement.points[4].Y));
+                    arc.Append(string.Format("{0} {1} ", cgmElement.points[2].X, cgmElement.points[2].Y));
+                    path.Attributes.Append(cgm_svg.CreateAttribute("d")).Value += arc.ToString();
+
+                }
                 else if (cgmElement.elem_Name == "RESTRICTED TEXT")
                 {
                     #region MyRegion
@@ -3135,7 +3280,7 @@ namespace cgm_decoder
                     path.Attributes.Append(cgm_svg.CreateAttribute("y"));
                     path.InnerText = cgmElement.text;
                     path.Attributes.Append(cgm_svg.CreateAttribute("idx")).Value = cgm_idx.ToString();
-                    path.Attributes["x"].Value = (cgmElement.position.X ).ToString();
+                    path.Attributes["x"].Value = (cgmElement.position.X).ToString();
                     path.Attributes["y"].Value = (cgmElement.position.Y + (cgmElement.characterHeight)).ToString();
                     cgm_svg.DocumentElement.AppendChild(path);
                     if (cgmElement.characterOrientation != null)
@@ -3814,13 +3959,12 @@ namespace cgm_decoder
                         //Console.WriteLine(bb - (ya - yb));
                         //intecection.X = x + Math.Abs(x - intecection.X) / 2;
                         //intecection.Y = ya;
-
                         break;
                     }
                 }
                 intecection.X = (int)x;
                 intecection.Y = (int)ya;
-                s0 = Math.Sign(ya - yb);
+            
                 bb = ya - yb;
             }
             return intecection;
