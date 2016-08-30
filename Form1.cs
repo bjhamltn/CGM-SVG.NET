@@ -39,9 +39,9 @@ namespace cgm_decoder
     {
 
         #region debug enable console write line of decoded metafile name
-        string filename = "bigcgm03";
+        string filename = "2301558";
         int debug = 0;
-        bool altSet = 1 == 0; 
+        bool altSet = 1 == 1; 
         #endregion
 
         public class LineEdgeType
@@ -163,8 +163,8 @@ namespace cgm_decoder
                 characterColor = fillColor = strokeColor = edgeColor = Color.FromArgb(255, 0, 0, 0);
                 
                 characterHeight = 16;
-                edgeWidth = 0.25f;
-                strokeWidth = 0.25f;
+                edgeWidth = 0.0f;
+                strokeWidth = 0.0f;
                 lineCap = "round";
                 lineJoin = "round";
                 mitreLimit = 0;
@@ -3059,11 +3059,11 @@ namespace cgm_decoder
 
 
                     
-                    p_start = finfPontOnElispe((float)(90 + angle), (float)rx, (float)ry, cgmElement.points[0].X, cgmElement.points[0].Y, slope_p, p_start.X, p_start.Y, float.IsInfinity(slope_p) ? p_start.Y : p_start.X);
+                    p_start = finfPontOnElispe((float)( angle), (float)rx, (float)ry, cgmElement.points[0].X, cgmElement.points[0].Y, slope_p, p_start.X, p_start.Y, float.IsInfinity(slope_p) ? p_start.Y : p_start.X);
 
 
                     distance_180(cgmElement.points[0], p_end, out angle_P2, out slope_p, out bint_p);
-                    p_end = finfPontOnElispe((float)((90 + angle)), (float)rx, (float)ry, cgmElement.points[0].X, cgmElement.points[0].Y, slope_p, p_end.X, p_end.Y, float.IsInfinity(slope_p) ? p_end.Y : p_end.X);
+                    p_end = finfPontOnElispe((float)((angle)), (float)rx, (float)ry, cgmElement.points[0].X, cgmElement.points[0].Y, slope_p, p_end.X, p_end.Y, float.IsInfinity(slope_p) ? p_end.Y : p_end.X);
 
                     angle_LEN = angle_P2 - angle_P1;
 
@@ -3251,6 +3251,7 @@ namespace cgm_decoder
                 }
                 else if (cgmElement.elem_Name == "PARABOLIC ARC") 
                 {
+                    #region MyRegion
                     if (!isFigure || path.Attributes["d"] == null)
                     {
                         path = cgm_svg.CreateElement("path");
@@ -3265,7 +3266,8 @@ namespace cgm_decoder
                     arc.Append(string.Format("C {0} {1} ", cgmElement.points[3].X, cgmElement.points[3].Y));
                     arc.Append(string.Format("{0} {1} ", cgmElement.points[4].X, cgmElement.points[4].Y));
                     arc.Append(string.Format("{0} {1} ", cgmElement.points[2].X, cgmElement.points[2].Y));
-                    path.Attributes.Append(cgm_svg.CreateAttribute("d")).Value += arc.ToString();
+                    path.Attributes.Append(cgm_svg.CreateAttribute("d")).Value += arc.ToString(); 
+                    #endregion
 
                 }
                 else if (cgmElement.elem_Name == "RESTRICTED TEXT")
@@ -3295,12 +3297,14 @@ namespace cgm_decoder
                 }
                 else if (cgmElement.elem_Name == "NEW REGION")
                 {
+                    #region MyRegion
                     pathNew = false;
                     newRegion = true;
                     if (path.Attributes["d"] != null)
                     {
                         path.Attributes["d"].Value += " M";
-                    }
+                    } 
+                    #endregion
                 }
                 else
                 {
@@ -3381,17 +3385,31 @@ namespace cgm_decoder
 
                             if (isFigure)
                             {
-                                path.Attributes["style"].Value += string.Format("fill-rule:evenodd;");
-                                path.Attributes["style"].Value += string.Format("fill:#{0};", cgmElement.fillColor.Name.Substring(2));
+                                if (cgmElement.fill_style == "solid")
+                                {
+                                    path.Attributes["style"].Value += string.Format("fill-rule:evenodd;");
+                                    path.Attributes["style"].Value += string.Format("fill:#{0};", cgmElement.fillColor.Name.Substring(2));
+                                }
+                                else
+                                {
+                                    path.Attributes["style"].Value += string.Format("fill:none;");
+                                }
                             }
                             else
                             {
                                 path.Attributes["style"].Value += string.Format("fill:none;");
                             }
 
-
-                            path.Attributes["style"].Value += string.Format("stroke:#{0};", cgmElement.strokeColor.Name.Substring(2));
-                            path.Attributes["style"].Value += string.Format("stroke-width:{0};", cgmElement.strokeWidth);
+                            if (isFigure)
+                            {
+                                path.Attributes["style"].Value += string.Format("stroke:#{0};", cgmElement.edgeColor.Name.Substring(2));
+                                path.Attributes["style"].Value += string.Format("stroke-width:{0};", cgmElement.edgeWidth * Convert.ToInt32(cgmElement.edgeVisibility) );
+                            }
+                            else
+                            {
+                                path.Attributes["style"].Value += string.Format("stroke:#{0};", cgmElement.strokeColor.Name.Substring(2));
+                                path.Attributes["style"].Value += string.Format("stroke-width:{0};", cgmElement.strokeWidth);
+                            }
                             int edgeType;
                             if (int.TryParse(cgmElement.lineType, out edgeType))
                             {
@@ -3733,11 +3751,11 @@ namespace cgm_decoder
 
         }
 
-        public PointF finfPontOnElispe(float angle, float d2, float d1, float h, float k, float m, float x1, float y1, float xMax)
+        public PointF finfPontOnElispe(float angle, float d1, float d2, float h, float k, float m, float x1, float y1, float xMax)
         {
 
-            float c_teta = (float)(Math.Round(Math.Cos(angle * Math.PI / 180),1));
-            float s_teta = (float)(Math.Round(Math.Sin(angle * Math.PI / 180),1));
+            float c_teta = (float)((Math.Cos(angle * Math.PI / 180)));
+            float s_teta = (float)((Math.Sin(angle * Math.PI / 180)));
 
             float c_teta_2 = c_teta * c_teta;
             float s_teta_2 = s_teta * s_teta;
@@ -3747,9 +3765,7 @@ namespace cgm_decoder
             float A, B, C, D, E, F;
 
             A = (c_teta_2 / a2) + (s_teta_2 / b2);
-
-            B = 2 * (c_teta * s_teta * ((1 / a2) - (1 / b2)));
-            
+            B = 2 * (c_teta * s_teta * ((1 / a2) - (1 / b2)));            
             C = (s_teta_2 / a2 )+ (c_teta_2 / b2);
 
             float x = 0;
@@ -3762,6 +3778,7 @@ namespace cgm_decoder
             float xr1 = Math.Max(xMax, h);
             float[] range = { 0 };
             float d3 = Math.Max(d2, d1);
+            #region MyRegion
             if (m == 0)
             {
 
@@ -3776,7 +3793,7 @@ namespace cgm_decoder
                     xr0 = h - 1;
                     xr1 = h + (d3 + 1);
                     xr1 = Math.Max(xMax, xr1);
-                }                
+                }
             }
             else if (float.IsInfinity(m))
             {
@@ -3794,7 +3811,7 @@ namespace cgm_decoder
                     xr0 = k - 1;
                     xr1 = k + (d3 + 1);
                     xr1 = Math.Max(xMax, xr1) + 1;
-                }   
+                }
             }
             else
             {
@@ -3802,7 +3819,7 @@ namespace cgm_decoder
                 {
                     xr1 = h + 3;
                     xr0 = h - (d3 + 1);
-                    xr0 = Math.Min(xMax, xr0) - 2;                    
+                    xr0 = Math.Min(xMax, xr0) - 2;
                 }
                 else if (h < xMax)
                 {
@@ -3811,50 +3828,52 @@ namespace cgm_decoder
                     xr1 = Math.Max(xMax, xr1);
                 }
             }
-            float upperLimit =( xr1 - xr0 + 1 ) * 100;
-            range = Enumerable.Range((int)xr0, (int)(upperLimit)).Select(fd => (float)(fd + (1 / 100))).ToArray();
+            float upperLimit = (xr1 - xr0 + 1) * 1;
+            range = Enumerable.Range((int)xr0, (int)(upperLimit)).Select(fd => (float)(fd + (1 / 1))).ToArray();
             int i = 0;
             int sign = 0;
 
 
-                if (float.IsInfinity(m))
-                {
-                    x = h;
-                    y = range[i];
-                }
-                else if ( m == 0)
-                {
-                    x = range[i];
-                    y =  k;
-                }
-                else
-                {
-                    x = range[i];
-                    y = m * (x - x1) + y1;
-                }
-                
-                
-                float A1 = A * x * x;
-                float B1 = B * x * y;
-                float C1 = C * y * y;
+            if (float.IsInfinity(m))
+            {
+                x = h;
+                y = range[i];
+            }
+            else if (m == 0)
+            {
+                x = range[i];
+                y = k;
+            }
+            else
+            {
+                x = range[i];
+                y = m * (x - x1) + y1;
+            }
 
-                D = ((2 * A * h) + (k * B)) * x;
-                E = ((2 * C * k) + (B * h)) * y;
 
-                F = (A * h2) + (B * h * k) + (C * k2) - 1;
+            float A1 = A * x * x;
+            float B1 = B * x * y;
+            float C1 = C * y * y;
 
-                res = A1 + B1 + C1 - D - E + F;
-                sign = Math.Sign(res);
-                i++;
-            
-            
+            D = ((2 * A * h) + (k * B)) * x;
+            E = ((2 * C * k) + (B * h)) * y;
+
+            F = (A * h2) + (B * h * k) + (C * k2) - 1;
+
+            res = A1 + B1 + C1 - D - E + F;
+            sign = Math.Sign(res);
+            i++;
+
+
             PointF intercection = new PointF();
             int max_i = range.Length;
             bool solved = false;
             y = 0;
+            //Console.WriteLine(res.ToString() + "\t" + x + "\t" + y); 
+            #endregion
+            
             for (; i < max_i; i++)
-            {
-                //Console.WriteLine(res.ToString() + "\t" + x + "\t" + y);
+            {               
                 if (float.IsInfinity(m))
                 {
                     x = h;
@@ -3862,24 +3881,21 @@ namespace cgm_decoder
                 }
                 else
                 {
-                    x = range[i];
+                    x = range[i];                   
                     y = m * (x - x1) + y1;
                 }
 
-                 A1 = A * x * x;
-                 B1 = B * x * y;
-                 C1 = C * y * y;
-                
+                A1 = A * x * x;
+                B1 = B * x * y;
+                C1 = C * y * y;                
                 D = ((2 * A * h) + (k * B)) * x;
                 E = ((2 * C * k) + (B * h)) * y;
-
                 F = (A * h2) + (B * h * k) + (C * k2) - 1;
                 
                 res = A1 + B1 + C1 - D - E + F;
-               
+                //Console.WriteLine(res.ToString() + "\t" + x + "\t" + y);
                 if (sign != Math.Sign(res) )
                 {
-
                     if (!float.IsInfinity(m))
                     {
                         intercection.X = x - (Math.Abs(x - intercection.X) / 2);
@@ -3915,7 +3931,10 @@ namespace cgm_decoder
                 intercection.X = x;
                 intercection.Y = y;
             }
-           
+            if (solved == false)
+            {
+                Console.WriteLine("no solution found");
+            }
             return intercection;
         }
 
