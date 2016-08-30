@@ -39,7 +39,7 @@ namespace cgm_decoder
     {
 
         #region debug enable console write line of decoded metafile name
-        string filename = "2301558";
+        string filename = "ICN-A350-A-36XXP004-A-FAPE3-01EW8-A-001-01";
         int debug = 0;
         bool altSet = 1 == 1; 
         #endregion
@@ -163,8 +163,8 @@ namespace cgm_decoder
                 characterColor = fillColor = strokeColor = edgeColor = Color.FromArgb(255, 0, 0, 0);
                 
                 characterHeight = 16;
-                edgeWidth = 0.0f;
-                strokeWidth = 0.0f;
+                edgeWidth = 1f;
+                strokeWidth = 1f;
                 lineCap = "round";
                 lineJoin = "round";
                 mitreLimit = 0;
@@ -1810,7 +1810,7 @@ namespace cgm_decoder
                         edgeType = edge_t.ToString();
                         break;
                 }
-                Cgm_Elements.Last().strokeWidth = 0.5f;
+                //Cgm_Elements.Last().strokeWidth = 0.5f;
                 Cgm_Elements.Last().lineType = edge_t.ToString();
                 #endregion
             }
@@ -1907,7 +1907,8 @@ namespace cgm_decoder
                 else if (Cgm_Elements.Last().colour_precision == 8)
                 {
                     int[] idx_breaks = Enumerable.Range(0, buffer.Length / 3).Select(x => x * 3).ToArray();
-                    Color[] sdasda = Cgm_Elements.Last().colorTable = idx_breaks.Select(i => Color.FromArgb(255, buffer[i], buffer[i + 1], buffer[i + 2])).ToArray();
+                    
+                    Color[] sdasda = Cgm_Elements.Last().colorTable = idx_breaks.Select(i => Color.FromArgb(255, buffer[i+1], buffer[i + 2], buffer[i + 3])).ToArray();
                 }
                 else if (Cgm_Elements.Last().colorModel == "RGB")
                 {
@@ -2199,6 +2200,15 @@ namespace cgm_decoder
                 Cgm_Elements.Last().vdc_integer_precision = buffer.Last();
                 #endregion
 
+            }
+            else if (elemName == "BEGIN APPLICATION STRUCTURE")
+            {
+                buffer = new byte[paramLen];
+                br.Read(buffer, 0, buffer.Length);
+            }
+            else if (elemName == "BEGIN APPLICATION STRUCTURE BODY")
+            {
+                buffer = new byte[paramLen];
             }
             else if (elemName == "INTEGER PRECISION")
             {
@@ -2980,9 +2990,6 @@ namespace cgm_decoder
                     string cx = cgmElement.points[0].X.ToString();
                     string cy = cgmElement.points[0].Y.ToString();
 
-
-
-
                     path.Attributes["delta_start"].Value = cgmElement.points[3].ToString();
                     path.Attributes["delta_end"].Value = cgmElement.points[4].ToString();
                     path.Attributes["p1"].Value = cgmElement.points[1].ToString();
@@ -2990,10 +2997,8 @@ namespace cgm_decoder
                     path.Attributes["center"].Value = cgmElement.points[0].ToString(); 
                     #endregion
 
-
                     PointF p_start = PointF.Add(cgmElement.points[0], new SizeF(cgmElement.points[3].X, cgmElement.points[3].Y));
                     PointF p_end = PointF.Add(cgmElement.points[0], new SizeF(cgmElement.points[4].X, cgmElement.points[4].Y));
-
 
                     char dir = '0';
                     char path_len = '0';
@@ -3004,7 +3009,6 @@ namespace cgm_decoder
                     double angle_3 = 0;
                     double ry = 0;
                     double rx = 0;
-
 
                     /////////////////////////////////////////////////
                     Cgm_Element ellispe = new Cgm_Element();
@@ -3056,11 +3060,8 @@ namespace cgm_decoder
                     double angle_P2 = 0;
 
                     distance_180(cgmElement.points[0], p_start, out angle_P1, out slope_p, out bint_p);
-
-
                     
                     p_start = finfPontOnElispe((float)( angle), (float)rx, (float)ry, cgmElement.points[0].X, cgmElement.points[0].Y, slope_p, p_start.X, p_start.Y, float.IsInfinity(slope_p) ? p_start.Y : p_start.X);
-
 
                     distance_180(cgmElement.points[0], p_end, out angle_P2, out slope_p, out bint_p);
                     p_end = finfPontOnElispe((float)((angle)), (float)rx, (float)ry, cgmElement.points[0].X, cgmElement.points[0].Y, slope_p, p_end.X, p_end.Y, float.IsInfinity(slope_p) ? p_end.Y : p_end.X);
@@ -3069,7 +3070,6 @@ namespace cgm_decoder
 
                     getArcParams_ell((float)angle_dir, (float)angle_LEN, out path_len, out dir);
                    
-
                     path.Attributes["angle_dir"].Value = Math.Round(angle_dir, 2).ToString();
                     path.Attributes["angle_ends"].Value = Math.Round(angle_3, 2).ToString();
                     path.Attributes["angle_len"].Value = Math.Round(angle_LEN, 2).ToString();
@@ -3200,11 +3200,11 @@ namespace cgm_decoder
 
                     distance_180(cgmElement.points[0], p_start, out angle_P1, out slope_p, out bint_p);
 
-                    p_start = finfPontOnElispe((float)(90 + angle), (float)rx, (float)ry, cgmElement.points[0].X, cgmElement.points[0].Y, slope_p, p_start.X, p_start.Y, float.IsInfinity(slope_p) ? p_start.Y : p_start.X);
+                    p_start = finfPontOnElispe((float)(angle), (float)rx, (float)ry, cgmElement.points[0].X, cgmElement.points[0].Y, slope_p, p_start.X, p_start.Y, float.IsInfinity(slope_p) ? p_start.Y : p_start.X);
 
 
                     distance_180(cgmElement.points[0], p_end, out angle_P2, out slope_p, out bint_p);
-                    p_end = finfPontOnElispe((float)((90 + angle)), (float)rx, (float)ry, cgmElement.points[0].X, cgmElement.points[0].Y, slope_p, p_end.X, p_end.Y, float.IsInfinity(slope_p) ? p_end.Y : p_end.X);
+                    p_end = finfPontOnElispe((float)((angle)), (float)rx, (float)ry, cgmElement.points[0].X, cgmElement.points[0].Y, slope_p, p_end.X, p_end.Y, float.IsInfinity(slope_p) ? p_end.Y : p_end.X);
 
                     angle_LEN = angle_P2 - angle_P1;
 
@@ -3516,8 +3516,10 @@ namespace cgm_decoder
             string binStr = new String(Convert.ToString(hbyte, 2).ToCharArray().ToArray()).PadLeft(8, '0') +
             new String(Convert.ToString(lbyte, 2).ToCharArray().ToArray()).PadLeft(8, '0');
 
-            Int16 cw = Convert.ToInt16(binStr, 2);
-            paramLen = (Int16)(cw & 0x1f);
+            UInt16 cw = Convert.ToUInt16(binStr, 2);
+            paramLen = (UInt16)(cw & 0x1f);
+            
+            
 
             byte elemclassX = (byte)(cw >> 12);
             byte elemIdX = (byte)((cw >> 5) & 0x7f);
@@ -3601,35 +3603,45 @@ namespace cgm_decoder
             float b_1;
             float b_2;
 
-
             rx = distance_180(cgmElement.points[0], cgmElement.points[1], out angle_p1, out slope_D1, out b_1);
             ry = distance_180(cgmElement.points[0], cgmElement.points[2], out angle_p2, out slope_D2, out b_2);
             angle_2 = (angle_p2 - angle_p1);
             PointF rP_minor = cgmElement.points[2];
             PointF rP_major = cgmElement.points[1];
-           
-               
+            
             if ( (int)(Math.Cos(Math.Abs(angle_2 * Math.PI /180)) * 100) != 0 )
             {
-
                 if (rx > ry)
                 {
-                    rx = distance_180(cgmElement.points[0], cgmElement.points[1], out angle_p1, out slope_D1, out b_1);
-                    ry = distance_180(cgmElement.points[0], cgmElement.points[2], out angle_p2, out slope_D2, out b_2);
                 }
                 else
                 {
-                    rx = distance_180(cgmElement.points[0], cgmElement.points[1], out angle_p1, out slope_D1, out b_1);
-                    ry = distance_180(cgmElement.points[0], cgmElement.points[2], out angle_p2, out slope_D2, out b_2);
-                }
-
-            
+                    rx = distance_180(cgmElement.points[0], cgmElement.points[2], out angle_p1, out slope_D1, out b_1);
+                    ry = distance_180(cgmElement.points[0], cgmElement.points[1], out angle_p2, out slope_D2, out b_2);
+                    rP_minor = cgmElement.points[1];
+                    rP_major = cgmElement.points[2];
+                }            
                 slope_D1 = -1 / slope_D1;
-                PointF x_axis = new PointF(0, cgmElement.points[0].Y);
+                PointF D = new PointF(0, cgmElement.points[0].Y);
+                if (float.IsInfinity(slope_D1))
+                {
+                    D.X = rP_minor.X;
+                    D.Y = (float)(rx + rP_minor.Y);
+                }
+                else
+                {
+                    double tetha = Math.PI * ((360 + angle_p1) - 90) / 180;
+                    double xDelta =(Math.Cos(tetha) * rx);
+                    double yDelta =(Math.Sin(tetha) * rx);
+              
 
-                x_axis.X = float.IsInfinity(slope_D1) ? rP_minor.X : (cgmElement.points[0].Y - rP_major.Y + slope_D1 * cgmElement.points[0].X) / slope_D1;
-                x_axis.Y = float.IsInfinity(slope_D1) ? (float)(rx + rP_minor.Y) : x_axis.Y;
-                PointF D = x_axis;
+                    D.X = (float)(rP_minor.X + xDelta);
+                    D.Y = (float)(rP_minor.Y + yDelta);
+
+
+                }
+                
+                
 
                 double DC_diam = distance_180(cgmElement.points[0], D, out angle_p2, out slope_D2, out b_2);
                 PointF C = midPoint(cgmElement.points[0], D);
@@ -3650,25 +3662,20 @@ namespace cgm_decoder
                 {
                     G.X = C.X + jj.Width;
                     G.Y = C.Y + jj.Height;
-
                     E.X = C.X - jj.Width;
-                    E.Y = C.Y - jj.Height;
-                    
+                    E.Y = C.Y - jj.Height;                    
                 }
                 else if (!sign_m && !sign_a)
                 {
                     G.X = C.X + jj.Width;
                     G.Y = C.Y - jj.Height;
-
                     E.X = C.X - jj.Width;
                     E.Y = C.Y + jj.Height;
-
                 }   
                 else if (!sign_m && sign_a)
                 {
                     G.X = C.X - jj.Width;
                     G.Y = C.Y + jj.Height;
-
                     E.X = C.X + jj.Width;
                     E.Y = C.Y - jj.Height;
                 }
@@ -3676,7 +3683,6 @@ namespace cgm_decoder
                 {
                     G.X = C.X - jj.Width;
                     G.Y = C.Y - jj.Height;
-
                     E.X = C.X + jj.Width;
                     E.Y = C.Y + jj.Height;
                 }
@@ -3684,6 +3690,7 @@ namespace cgm_decoder
                 rx = distance_180(rP_minor, G, out angle_p2, out slope_D2, out b_2);
                 ry = distance_180(rP_minor, E, out angle_p1, out slope_D2, out b_2);
                 double dist_EC = distance_180(cgmElement.points[0] ,E, out angle, out slope_D2, out b_2);
+                angle_2 = 90;
             }
             else
             {
@@ -3697,9 +3704,7 @@ namespace cgm_decoder
                 else
                 {
                     angle = angle_p1;
-                }
-
-                
+                }                
             }
         }
         
@@ -3797,20 +3802,28 @@ namespace cgm_decoder
             }
             else if (float.IsInfinity(m))
             {
-
-                xr1 = Math.Max(xMax, k);
-
-                if (k > xMax)
+                if (float.IsNegativeInfinity(m))
                 {
-                    xr1 = k - 1;
-                    xr0 = k - (d3 + 1);
-                    xr0 = Math.Min(xr0, xMax);
+                    xr1 = k;
+                    xr0 = k - d3;
+                    
                 }
                 else
                 {
-                    xr0 = k - 1;
-                    xr1 = k + (d3 + 1);
-                    xr1 = Math.Max(xMax, xr1) + 1;
+                    xr1 = Math.Max(xMax, k);
+
+                    if (k > xMax)
+                    {
+                        xr1 = k - 1;
+                        xr0 = k - (d3 + 1);
+                        xr0 = Math.Min(xr0, xMax);
+                    }
+                    else
+                    {
+                        xr0 = k + 1;
+                        xr1 = k + (d3 + 1);
+                        xr1 = Math.Max(xMax, xr1) + 1;
+                    }
                 }
             }
             else
@@ -3823,13 +3836,13 @@ namespace cgm_decoder
                 }
                 else if (h < xMax)
                 {
-                    xr0 = h - 1;
+                    xr0 = h;
                     xr1 = h + (d3 + 1);
                     xr1 = Math.Max(xMax, xr1);
                 }
             }
             float upperLimit = (xr1 - xr0 + 1) * 1;
-            range = Enumerable.Range((int)xr0, (int)(upperLimit)).Select(fd => (float)(fd + (1 / 1))).ToArray();
+            range = Enumerable.Range((int)xr0-1, (int)(upperLimit)).Select(fd => (float)(fd + (1 / 1))).ToArray();
             int i = 0;
             int sign = 0;
 
@@ -3873,7 +3886,8 @@ namespace cgm_decoder
             #endregion
             
             for (; i < max_i; i++)
-            {               
+            {
+               // Console.WriteLine(res.ToString() + "\t" + x + "\t" + y);
                 if (float.IsInfinity(m))
                 {
                     x = h;
@@ -3893,19 +3907,27 @@ namespace cgm_decoder
                 F = (A * h2) + (B * h * k) + (C * k2) - 1;
                 
                 res = A1 + B1 + C1 - D - E + F;
-                //Console.WriteLine(res.ToString() + "\t" + x + "\t" + y);
+               
                 if (sign != Math.Sign(res) )
                 {
                     if (!float.IsInfinity(m))
                     {
-                        intercection.X = x - (Math.Abs(x - intercection.X) / 2);
-                        if (m > 0)
+                        if (i > 1)
                         {
-                            intercection.Y = y - (Math.Abs(y - intercection.Y) / 2);
+                            intercection.X = x - (Math.Abs(x - intercection.X) / 2);
+                            if (m > 0)
+                            {
+                                intercection.Y = y - (Math.Abs(y - intercection.Y) / 2);
+                            }
+                            else if (m < 0)
+                            {
+                                intercection.Y = y + (Math.Abs(y - intercection.Y) / 2);
+                            }
                         }
-                        else if (m < 0)
+                        else
                         {
-                            intercection.Y = y + (Math.Abs(y - intercection.Y) / 2);
+                            intercection.X = x;
+                            intercection.Y = y;
                         }
                     }
                     else
@@ -3913,17 +3935,6 @@ namespace cgm_decoder
                         intercection.X = x;
                         intercection.Y = y;
                     }
-                    //if (i > 1)
-                    //{
-                    //    intercection.X = float.IsInfinity(m) ? x : x - Math.Abs(x - intercection.X) / 2;
-                    //    intercection.Y = intercection.Y == 0 ? y : y - Math.Abs(y - intercection.Y) / 2;
-                    //}
-                    //else
-                    //{
-                    //    intercection.X = float.IsInfinity(m) ? x : x;
-                    //    intercection.Y = y;
-                    //}
-                    //max_i = i + 1;
                     solved = true;
                     break;                    
                 }
@@ -3995,45 +4006,75 @@ namespace cgm_decoder
             path_len = '0';
             dir = '0';
             bool flipped = false;
+            bool flipped2 = false;
             if (angle_dir < 0)
             {
                 angle_dir = 360 + angle_dir;
                 flipped = true;
             }
 
-            angle_dir = (float)Math.Round(angle_dir, 3);
+            //angle_dir = (float)Math.Round(angle_dir, 0);
 
             if (angle_LEN < 0)
             {
+                flipped2 = true;
                 angle_LEN = 360 + angle_LEN;                
             }
             if (flipped == false)
             {
 
-                if (angle_dir > 180 && angle_dir <= 270)
+                if (angle_dir > 180 && angle_dir < 270)
                 {
                     path_len = '0';
                     dir = '0';
                 }
-                else if (angle_dir > 90 && angle_dir <= 180)
+                else if (angle_dir > 90 && angle_dir < 180)
                 {
-                    path_len = '1';
-                    dir = '0';
+                    path_len = angle_LEN < 180 ? '0' : '1';
+                    dir = '1';   
                 }
                 else if (angle_dir > 0 && angle_dir < 90)
                 {
-                    path_len = '0';
-                    dir = '1';
+                    path_len = angle_LEN < 180 ? '0' : '1';
+                    dir = '1';                    
                 }
-                else if (angle_dir > 270 && angle_dir <= 360)
+                else if (angle_dir > 270 && angle_dir < 360)
+                {
+                    path_len = '0';
+                    if (360 - angle_LEN > 180)
+                    {
+                        path_len = '1';
+                    }
+                    dir = '0';
+                }
+
+                else if (angle_dir == 90)
+                {
+                    if (!flipped2)
+                    {
+                        path_len = angle_LEN < 180 ? '0' : '1';
+                        dir = '1';
+                    }
+                    else
+                    {
+                        path_len = angle_LEN > 180 ? '0' : '1';
+                        dir = '0';
+                    }
+                }
+                else if (angle_dir == 270)
                 {
                     path_len = '0';
                     dir = '0';
                 }
-                else if (angle_dir == 90)
+                else if (angle_dir == 180)
                 {
-                    path_len = angle_LEN < 180 ? '0' : '1';
-                    dir = '1';                 
+                    path_len = '1';
+                    dir = '0';
+                }        
+                else if (angle_dir == 360)
+                {
+                    path_len = '0';
+                    dir = '0';
                 }
             }
             else if (flipped)
@@ -4060,11 +4101,9 @@ namespace cgm_decoder
                     dir = '0';
                 }
                 else if (angle_dir == 270) 
-                {
-               
+                {               
                         dir = '0';
-                        path_len = angle_LEN < 180 ? '1' : '0';                    
-                    
+                        path_len = angle_LEN < 180 ? '1' : '0';                                        
                 }
                 else if (angle_dir == 180) 
                 {
