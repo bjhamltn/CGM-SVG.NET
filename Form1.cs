@@ -39,8 +39,8 @@ namespace cgm_decoder
     {
 
         #region debug enable console write line of decoded metafile name
-        string filename = "celary03";
-        int debug = 0;
+        string filename = "intstl05";
+        int debug = 1;
         bool altSet = 1 == 0; 
         #endregion
 
@@ -121,6 +121,8 @@ namespace cgm_decoder
             public float true_height;
             public float true_width;
             public string fill_style;
+            public string hatch_style;
+            public string hatch_id;
             public string lineJoin;
             public string lineCap;
             public string lineTypeContinue;
@@ -139,6 +141,7 @@ namespace cgm_decoder
 
             public Cgm_Element()
             {
+                hatch_id = "1";
                 isCircle = false;
                 mitreLimit = 4;
                 lineEdgeDefs = new LineEdgeType();
@@ -659,20 +662,20 @@ namespace cgm_decoder
             }); 
             #endregion
 
-            
-            
+
+
             #region JCGM CGM used for testing and tunning
-            //java.io.File cgmFile = new java.io.File(cgmfilename_in);
-            //java.io.DataInputStream input = new java.io.DataInputStream(new java.io.FileInputStream(cgmFile));
-            //net.sf.jcgm.core.CGM cgm = new CGM();
-            //cgm.read(input);
-            //List<Command> commands = cgm.getCommands().toArray().Cast<Command>().ToList();
-            //StreamWriter sw = new StreamWriter(cgmfilename_out, false);
-            //foreach (Command cmd in commands)
-            //{
-            //    sw.WriteLine(cmd.toString());
-            //}
-            //sw.Close();            
+            java.io.File cgmFile = new java.io.File(cgmfilename_in);
+            java.io.DataInputStream input = new java.io.DataInputStream(new java.io.FileInputStream(cgmFile));
+            net.sf.jcgm.core.CGM cgm = new CGM();
+            cgm.read(input);
+            List<Command> commands = cgm.getCommands().toArray().Cast<Command>().ToList();
+            StreamWriter sw = new StreamWriter(cgmfilename_out, false);
+            foreach (Command cmd in commands)
+            {
+                sw.WriteLine(cmd.toString());
+            }
+            sw.Close();
             #endregion
 
             BinaryReader br = new BinaryReader(new FileStream(cgmfilename_in, FileMode.Open, FileAccess.Read));
@@ -1737,6 +1740,41 @@ namespace cgm_decoder
                 #endregion
             }
 
+            else if (elemName == "HATCH INDEX")
+            {
+                #region MyRegion
+                buffer = new byte[paramLen];
+                br.Read(buffer, 0, buffer.Length);
+                string hatch_style = "";
+                switch (buffer[1])
+                {
+                    case 1:
+                        hatch_style = "horizontal";
+                        break;
+                    case 2:
+                        hatch_style = "vertical";
+                        break;
+                    case 3:
+                        hatch_style = "positive slope";
+                        break;
+                    case 4:
+                        hatch_style = "negative slope";
+                        break;
+                    case 5:
+                        hatch_style = "horizontal/vertical crosshatch";
+                        break;
+                    case 6:
+                        hatch_style = "positive/negative slope crosshatch";
+                        break;
+                    default:
+                        hatch_style = "horizontal/vertical crosshatch";
+                        break;
+                }
+                Cgm_Elements.Last().hatch_style = hatch_style;
+                Cgm_Elements.Last().hatch_id = buffer[1].ToString();
+                
+                #endregion
+            }
             else if (elemName == "INTERIOR STYLE")
             {
                 #region MyRegion
@@ -2625,6 +2663,51 @@ namespace cgm_decoder
             buf = buffer;
         }
 
+        public void createPatter(string pattern_id, string hatch_idx, XmlDocument cgm_svg, string fillColour)
+        {
+
+            XmlNode hatchpattern = cgm_svg.DocumentElement.SelectSingleNode("//pattern[@id='" + pattern_id + "']");
+            if (hatchpattern != null)
+            {
+                return;
+            }
+            XmlNode defs = cgm_svg.DocumentElement.SelectSingleNode("//defs");
+
+
+            XmlDocument hatch = new XmlDocument();
+            
+            hatch_idx =  String.Format("hashtype_{0}", hatch_idx);
+
+            byte[] data = (byte[])cgm_struct.ResourceManager.GetObject(hatch_idx);
+
+            hatch.LoadXml(System.Text.Encoding.Default.GetString(data));
+
+            XmlNamespaceManager xml = new XmlNamespaceManager(hatch.NameTable);
+            xml.AddNamespace("space", "http://www.w3.org/2000/svg");
+            XmlNode pattern = null;
+
+            pattern = hatch.DocumentElement.SelectSingleNode("//space:path", xml);
+            if (pattern == null)
+            {
+                pattern = hatch.DocumentElement.SelectSingleNode("//space:polygon", xml);
+            }
+
+            hatchpattern = cgm_svg.CreateElement("pattern");
+
+            hatchpattern.Attributes.Append(cgm_svg.CreateAttribute("id")).Value = pattern_id;
+            hatchpattern.Attributes.Append(cgm_svg.CreateAttribute("patternUnits")).Value = "userSpaceOnUse";
+            hatchpattern.Attributes.Append(cgm_svg.CreateAttribute("height")).Value = "40";
+            hatchpattern.Attributes.Append(cgm_svg.CreateAttribute("width")).Value = "40";
+
+            pattern.Attributes.Append(hatch.CreateAttribute("fill")).Value = fillColour;
+            pattern.Attributes.Append(hatch.CreateAttribute("style")).Value = String.Format("fill:{0};", fillColour);
+
+            hatchpattern.InnerXml = pattern.OuterXml.Replace("xmlns=\"http://www.w3.org/2000/svg\"", "");
+
+            defs.AppendChild(hatchpattern);
+
+        }
+
         public void CGM_t_SVG(List<Cgm_Element> Cgm_Elements)
         {
             #region MyRegion
@@ -2728,15 +2811,49 @@ namespace cgm_decoder
                    #endregion
                });
            }
-            int cgm_idx = 0;
-            int cgm_idx_abs = 0;
-            cgm_svg.DocumentElement.SetAttribute("xmlns:xlink","http://www.w3.org/1999/xlink");
+
+           int cgm_idx = 0;
+           int cgm_idx_abs = 0;
+           cgm_svg.DocumentElement.SetAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
+           XmlNode defs = cgm_svg.DocumentElement.AppendChild(cgm_svg.CreateElement("defs"));
+
+           Enumerable.Range(1, 6).ToList().ForEach(delegate(int hash_id)
+           {
+
+               String hatch_id =  String.Format("hashtype_{0}", hash_id);
+               
+               XmlDocument hatch = new XmlDocument();
+
+               byte[] data = (byte[])cgm_struct.ResourceManager.GetObject(hatch_id);
+
+               hatch.LoadXml(System.Text.Encoding.Default.GetString(data));
+
+               XmlNamespaceManager xml = new XmlNamespaceManager(hatch.NameTable);
+               xml.AddNamespace("space", "http://www.w3.org/2000/svg");
+               XmlNode pattern = null;
+            
+                   pattern = hatch.DocumentElement.SelectSingleNode("//space:path", xml);
+                   if (pattern == null)
+                   {
+                       pattern = hatch.DocumentElement.SelectSingleNode("//space:polygon", xml);
+                   }
+    
+               XmlNode hatchpattern = cgm_svg.CreateElement("pattern");
+
+               hatchpattern.Attributes.Append(cgm_svg.CreateAttribute("id")).Value = hatch_id;
+               hatchpattern.Attributes.Append(cgm_svg.CreateAttribute("patternUnits")).Value = "userSpaceOnUse";
+               hatchpattern.Attributes.Append(cgm_svg.CreateAttribute("height")).Value = "40";
+               hatchpattern.Attributes.Append(cgm_svg.CreateAttribute("width")).Value = "40";
+
+               hatchpattern.InnerXml = pattern.OuterXml.Replace("xmlns=\"http://www.w3.org/2000/svg\"", "");
+
+               defs.AppendChild(hatchpattern);
+           });
             foreach (Cgm_Element cgmElement in Cgm_Elements)
             {
                 pathNew = true;
                 bool close = cgmElement.isFig;
                 bool isFigure = cgmElement.isFig;
-                bool newRegion = false;
                 #region SVG Elements
                 if (cgmElement.elem_Name == ("POLYLINE"))
                 {
@@ -3593,8 +3710,7 @@ namespace cgm_decoder
                 else if (cgmElement.elem_Name == "NEW REGION")
                 {
                     #region MyRegion
-                    pathNew = false;
-                    newRegion = true;
+                    pathNew = false;                    
                     if (path.Attributes["d"] != null)
                     {
                         path.Attributes["d"].Value += " M";
@@ -3608,8 +3724,7 @@ namespace cgm_decoder
                 }
                 #endregion
                 if (pathNew)
-                {
-                    newRegion = false;
+                {                    
                     prevCgm = cgmElement;
                     cgm_idx++;
                     if (path.Attributes["style"] == null)
@@ -3648,6 +3763,15 @@ namespace cgm_decoder
                         {
                             path.Attributes["style"].Value += string.Format("fill:none;");
                             path.Attributes["style"].Value += string.Format("stroke-width:{0};", cgmElement.edgeWidth);
+                        }
+                        else if (cgmElement.fill_style == "hatch")
+                        {
+                            string colorName = cgmElement.fillColor.Name.Substring(2);
+                            string patternID = cgmElement.hatch_id + "_" + colorName;
+                            colorName = "#" + colorName;
+                            createPatter(patternID, cgmElement.hatch_id, cgm_svg, colorName);
+                            path.Attributes["style"].Value += string.Format("fill:url(#{0});", patternID);
+                            path.Attributes["style"].Value += string.Format("stroke-width:{0};", cgmElement.edgeWidth * Convert.ToInt32(cgmElement.edgeVisibility));
                         }
                         else
                         {
@@ -3868,6 +3992,8 @@ namespace cgm_decoder
                 bgColor = lastElem.bgColor,
                 mitreLimit = lastElem.mitreLimit,
                 fill_style = lastElem.fill_style,
+                hatch_style = lastElem.hatch_style,
+                hatch_id =  lastElem.hatch_id,
                 vdcType = lastElem.vdcType,
                 vdc_integer_precision = lastElem.vdc_integer_precision,
                 integer_precision = lastElem.integer_precision,
