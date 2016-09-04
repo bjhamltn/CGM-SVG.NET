@@ -121,4 +121,22 @@
   <data name="cgm_element_names" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>Resources\cgm_element_names.txt;System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089;Windows-1252</value>
   </data>
+  <data name="hashtype_1" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>Resources\hashtype_1.svg;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="hashtype_2" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>Resources\hashtype_2.svg;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="hashtype_3" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>Resources\hashtype_3.svg;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="hashtype_4" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>Resources\hashtype_4.svg;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="hashtype_5" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>Resources\hashtype_5.svg;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="hashtype_6" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>Resources\hashtype_6.svg;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
 </root>
