@@ -54,7 +54,7 @@ namespace cgm_decoder
         public int vdc_idx = 0;
         public bool paramLen_rollover = false;
         #region debug enable console write line of decoded metafile name
-        string filename = "bigcgm04"; //elarcc03
+        string filename = "ellarc06"; //elarcc03
         bool debug = false;
         bool altSet = true; 
         #endregion
@@ -1010,7 +1010,7 @@ namespace cgm_decoder
                     ee.Attributes["ry"].Value = ry.ToString();
                     ee.Attributes.Append(cgm_svg.CreateAttribute("fill")).Value = "none";
                     ee.Attributes.Append(cgm_svg.CreateAttribute("stroke")).Value = "black";
-                    ee.Attributes.Append(cgm_svg.CreateAttribute("stroke-width")).Value = "2";
+                    ee.Attributes.Append(cgm_svg.CreateAttribute("stroke-width")).Value = "2";                    
                     //cgm_svg.DocumentElement.AppendChild(ee);
                     #endregion
                     ///////////////////////////////////////////////////////
@@ -3171,13 +3171,16 @@ namespace cgm_decoder
                     br.Read(buffer, 0, buffer.Length);
 
                     float px = 0;
-                    px = Cgm_Elements.Last().bytes_getValue(buffer, precision);
+                    
+                    px = (float)Math.Round(Cgm_Elements.Last().bytes_getValue(buffer, precision), 2);
 
                     buffer = new byte[byteLen];
                     br.Read(buffer, 0, buffer.Length);
                     float py = 0;
-                    py = Cgm_Elements.Last().bytes_getValue(buffer, precision);
+                    
+                    
 
+                    py = (float)Math.Round(Cgm_Elements.Last().bytes_getValue(buffer, precision), 2);
                     Cgm_Elements.Last().points.Add(new PointF()
                     {
                         X = px,
@@ -3196,11 +3199,11 @@ namespace cgm_decoder
 
                     br.Read(buffer, 0, buffer.Length);
 
-                    px = Cgm_Elements.Last().bytes_getValue(buffer, precision);
+                    px = (float)Math.Round(Cgm_Elements.Last().bytes_getValue(buffer, precision), 2);
 
                     buffer = new byte[byteLen];
                     br.Read(buffer, 0, buffer.Length);
-                    py = Cgm_Elements.Last().bytes_getValue(buffer, precision);
+                    py = (float)Math.Round(Cgm_Elements.Last().bytes_getValue(buffer, precision), 2);
 
 
                     Cgm_Elements.Last().points.Add(new PointF()
@@ -3228,13 +3231,14 @@ namespace cgm_decoder
                     br.Read(buffer, 0, buffer.Length);
 
 
-                    float px = Cgm_Elements.Last().bytes_getValue(buffer, p);
+                    
+                    float px = (float)Math.Round(Cgm_Elements.Last().bytes_getValue(buffer, p), 2);
 
                     buffer = new byte[buf_len];
                     br.Read(buffer, 0, buffer.Length);
 
 
-                    float py = Cgm_Elements.Last().bytes_getValue(buffer, p);
+                    float py = (float)Math.Round(Cgm_Elements.Last().bytes_getValue(buffer, p), 2);
 
                     Cgm_Elements.Last().points.Add(new PointF()
                     {
@@ -5143,7 +5147,8 @@ namespace cgm_decoder
         {
             
             double dist = Math.Sqrt(Math.Pow(p2.X - p1.X, 2) + Math.Pow(p2.Y - p1.Y, 2));            
-            angle = Math.Atan2((p2.Y - p1.Y), (p2.X - p1.X)) * 180 / Math.PI;
+            angle = Math.Atan2((p2.Y - p1.Y),  (p2.X - p1.X)) * 180 / Math.PI;
+            angle = Math.Round(angle, 1);
             int sign = Math.Sign(angle);
             slope =   ((p2.Y - p1.Y) / (p2.X - p1.X));
             b_int = p1.X;
@@ -5434,6 +5439,7 @@ namespace cgm_decoder
             float[] range = { 0 };
             float d3 = Math.Max(d2, d1);
             #region MyRegion
+           
             if (m == 0)
             {
 
@@ -5492,7 +5498,10 @@ namespace cgm_decoder
                 }
             }
             float upperLimit = (xr1 - xr0 + 1) * 1;
-            range = Enumerable.Range((int)xr0-1, (int)(upperLimit)).Select(fd => (float)(fd + (1 / 1))).ToArray();
+            //range = Enumerable.Range((int)xr0-1, (int)(upperLimit)/0.01).Select(fd => (float)(fd + (1 / 1))).ToArray();
+            range = Enumerable.Range(0, (int)(upperLimit/0.10)).Select(fd => (float)(xr0 - 1) + ((float)fd / 10)).ToArray();
+            
+                
             int i = 0;
             int sign = 0;
 
@@ -5532,12 +5541,12 @@ namespace cgm_decoder
             int max_i = range.Length;
             bool solved = false;
             y = 0;
-            //Console.WriteLine(res.ToString() + "\t" + x + "\t" + y); 
+            Console.WriteLine(res.ToString() + "\t" + x + "\t" + y); 
             #endregion
             
             for (; i < max_i; i++)
             {
-               // Console.WriteLine(res.ToString() + "\t" + x + "\t" + y);
+                //Console.WriteLine(res.ToString() + "\t" + x + "\t" + y);
                 if (float.IsInfinity(m))
                 {
                     x = h;
@@ -5557,7 +5566,7 @@ namespace cgm_decoder
                 F = (A * h2) + (B * h * k) + (C * k2) - 1;
                 
                 res = A1 + B1 + C1 - D - E + F;
-               
+                //Console.WriteLine(res.ToString() + "\t" + x + "\t" + y);
                 if (sign != Math.Sign(res) )
                 {
                     if (!float.IsInfinity(m))
