@@ -50,12 +50,12 @@ namespace cgm_decoder
 
     public partial class Form1 : System.Windows.Forms.Form
     {
-        public string tempDir = ""; 
+        
         public int picture_idx = 0;
         public int vdc_idx = 0;
         public bool paramLen_rollover = false;
         #region debug enable console write line of decoded metafile name
-        string filename = "ngps5"; //elarcc03
+        string filename = "ellarc07"; //elarcc03
         bool debug = false;
         bool altSet = true; 
         #endregion
@@ -108,17 +108,17 @@ namespace cgm_decoder
 
 
             #region JCGM CGM used for testing and tunning
-            java.io.File cgmFile = new java.io.File(cgmfilename_in);
-            java.io.DataInputStream input = new java.io.DataInputStream(new java.io.FileInputStream(cgmFile));
-            net.sf.jcgm.core.CGM cgm = new CGM();
-            cgm.read(input);
-            List<Command> commands = cgm.getCommands().toArray().Cast<Command>().ToList();
-            StreamWriter sw = new StreamWriter(cgmfilename_out, false);
-            foreach (Command cmd in commands)
-            {
-                sw.WriteLine(cmd.toString());
-            }
-            sw.Close();
+            //java.io.File cgmFile = new java.io.File(cgmfilename_in);
+            //java.io.DataInputStream input = new java.io.DataInputStream(new java.io.FileInputStream(cgmFile));
+            //net.sf.jcgm.core.CGM cgm = new CGM();
+            //cgm.read(input);
+            //List<Command> commands = cgm.getCommands().toArray().Cast<Command>().ToList();
+            //StreamWriter sw = new StreamWriter(cgmfilename_out, false);
+            //foreach (Command cmd in commands)
+            //{
+            //    sw.WriteLine(cmd.toString());
+            //}
+            //sw.Close();
             #endregion
 
             BinaryReader br = new BinaryReader(new FileStream(cgmfilename_in, FileMode.Open, FileAccess.Read));
@@ -285,6 +285,7 @@ namespace cgm_decoder
             }
             return cgm_svg;
         }
+        
         public void CGM_t_SVG(List<Cgm_Element> Cgm_Elements)
         {
             IEnumerable<IGrouping<int, Cgm_Element>> vdcExtents = Cgm_Elements.GroupBy(fd => fd.vdc_idx);
@@ -295,6 +296,7 @@ namespace cgm_decoder
                 createSVG(ll, vdcExtentGroup.Key);
             }
         }
+        
         public void createSVG(List<Cgm_Element> Cgm_Elements, int vdcIdx)
         {
 
@@ -306,12 +308,11 @@ namespace cgm_decoder
             int cgm_idx = 0;
             int cgm_idx_abs = 0;
             cgm_svg.DocumentElement.SetAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
-
             cgm_svg.DocumentElement.SetAttribute("xmlns:dc", "http://purl.org/dc/elements/1.1/");
             cgm_svg.DocumentElement.SetAttribute("xmlns:cc", "http://creativecommons.org/ns#");
             cgm_svg.DocumentElement.SetAttribute("xmlns:rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#");
             cgm_svg.DocumentElement.SetAttribute("xmlns:svg", "http://www.w3.org/2000/svg");
-            cgm_svg.DocumentElement.SetAttribute("xmlns", "http://www.w3.org/2000/svg");
+            
             XmlNode defs = cgm_svg.DocumentElement.AppendChild(cgm_svg.CreateElement("defs"));
 
             createImagePattern(cgm_svg, Cgm_Elements, 1f);
@@ -350,17 +351,25 @@ namespace cgm_decoder
                 #endregion
             });
             int pic_idx = 0;
+            int lstSheet = Cgm_Elements.Last().picture_idx;
             string template = cgm_svg.OuterXml;
+            cgm_svg.DocumentElement.SetAttribute("xmlns", "http://www.w3.org/2000/svg");
             foreach (Cgm_Element cgmElement in Cgm_Elements)
             {
+                if (cgmElement.elem_Name == ("END PICTURE"))
+                {
+                    Console.WriteLine("Start New Sheet");
+                }
                 pathNew = true;
                 bool close = cgmElement.isFig;
                 bool isFigure = cgmElement.isFig;
                 if (pic_idx != cgmElement.picture_idx)
-                {
+                {                    
                     cgm_svg.Save(String.Format(@"C:\Users\795627\Desktop\cmg_svg_{0}_{1}.svg", vdcIdx.ToString(), pic_idx.ToString()));
                     cgm_svg = new XmlDocument();
-                    cgm_svg.LoadXml(template);
+                    cgm_svg.LoadXml(template);                    
+                    cgm_svg.DocumentElement.SetAttribute("xmlns", "http://www.w3.org/2000/svg");
+                    cgm_idx = 0;
                 }
                 pic_idx = cgmElement.picture_idx;
                 #region SVG Elements
@@ -419,13 +428,13 @@ namespace cgm_decoder
                     cgm_svg.DocumentElement.AppendChild(path);
                     path.Attributes.Append(cgm_svg.CreateAttribute("elem_name")).Value = cgmElement.elem_Name;
                     path.Attributes.Append(cgm_svg.CreateAttribute("idx")).Value = cgm_idx.ToString();
-                    path.Attributes.Append(cgm_svg.CreateAttribute("x")).Value = cgmElement.points[0].X.ToString();
-                    path.Attributes.Append(cgm_svg.CreateAttribute("y")).Value = cgmElement.points[0].Y.ToString();
+                    path.Attributes.Append(cgm_svg.CreateAttribute("x")).Value = (cgmElement.points[0].X).ToString();
+                    path.Attributes.Append(cgm_svg.CreateAttribute("y")).Value = (cgmElement.points[0].Y).ToString();
 
                     path.Attributes.Append(cgm_svg.CreateAttribute("width")).Value = cgmElement.rasterImage.Width.ToString();
                     path.Attributes.Append(cgm_svg.CreateAttribute("height")).Value = cgmElement.rasterImage.Height.ToString();
-                    int scaleX = 1;
-                    int scaleY = 1;
+                    float scaleX = 1;
+                    float scaleY = 1;
                     if (cgmElement.points[0].X > cgmElement.points[1].X)
                     {
                         scaleX = -1;
@@ -436,7 +445,10 @@ namespace cgm_decoder
                         path.Attributes.Append(cgm_svg.CreateAttribute("x")).Value = (-cgmElement.points[0].Y).ToString();
                         scaleY = -1;
                     }
-                    path.Attributes.Append(cgm_svg.CreateAttribute("transform")).Value = String.Format("scale({0},{1})", scaleX, scaleY);
+                    scaleY = scaleY * cgmElement.imageScale;
+                    scaleX = scaleX * cgmElement.imageScale;
+                    path.Attributes.Append(cgm_svg.CreateAttribute("transform")).Value = String.Format("scale({0},{1}) ", scaleX, scaleY,
+                        cgmElement.imageRotation, cgmElement.rasterImage.Width, cgmElement.rasterImage.Height, cgmElement.imageScale_delta_x, cgmElement.imageScale_delta_y);
 
 
                     path.Attributes.Append(cgm_svg.CreateAttribute("xlink", "href", "http://www.w3.org/1999/xlink")).Value = string.Format("data:image/bmp;base64,{0}", cgmElement.raster2base64());
@@ -454,8 +466,8 @@ namespace cgm_decoder
 
                     path.Attributes.Append(cgm_svg.CreateAttribute("y")).Value = (cgmElement.page_height - cgmElement.beginTilePoint.Y).ToString();
 
-                    path.Attributes.Append(cgm_svg.CreateAttribute("width")).Value = (cgmElement.rasterImage.Width * 1 / cgmElement.cellSizeInPathDirection).ToString();
-                    path.Attributes.Append(cgm_svg.CreateAttribute("height")).Value = (cgmElement.rasterImage.Height * 1 / cgmElement.cellSizeInPathDirection).ToString();
+                    path.Attributes.Append(cgm_svg.CreateAttribute("width")).Value = (cgmElement.rasterImage.Width * 1 ).ToString();
+                    path.Attributes.Append(cgm_svg.CreateAttribute("height")).Value = (cgmElement.rasterImage.Height * 1).ToString();
 
                     path.Attributes.Append(cgm_svg.CreateAttribute("xlink", "href", "http://www.w3.org/1999/xlink")).Value = string.Format("data:image/bmp;base64,{0}", cgmElement.raster2base64());
 
@@ -1032,6 +1044,7 @@ namespace cgm_decoder
                     p_end = PointF.Add(cgmElement.points[0], new SizeF(cgmElement.points[4].X, cgmElement.points[4].Y));
 
                     distance_180(cgmElement.points[0], p_start, out angle_P1, out slope_p, out bint_p);
+                    
                     p_start = finfPontOnElispe((float)(angle), (float)rx, (float)ry, cgmElement.points[0].X, cgmElement.points[0].Y, slope_p, p_start.X, p_start.Y, float.IsInfinity(slope_p) ? p_start.Y : p_start.X);
 
 
@@ -1045,16 +1058,16 @@ namespace cgm_decoder
                     
                     distance_180_xrs(pA2, pA1, out angle_P1, out angle_DIR, out slope_p, out bint_p);
                     
-                    Console.WriteLine(angle_DIR + "  " + Math.Round(angle_dir, 0) + " " + angle_LEN);
-                   
+                    //Console.WriteLine(angle_DIR + "  " + Math.Round(angle_dir, 0) + " " + angle_LEN);
+
+
+
+                    //angle_DIR = angle_DIR < 0 ? angle_DIR + 360 : angle_DIR;
                     getArcParams_ell_xrs((float)angle_DIR, (float)angle_dir, (float)angle_LEN, out path_len, out dir);
-
-
                     path.Attributes["angle_dir"].Value = Math.Round(angle_dir, 2).ToString();
                     path.Attributes["angle_ends"].Value = Math.Round(angle_3, 2).ToString();
                     path.Attributes["angle_len"].Value = Math.Round(angle_LEN, 2).ToString();
                     path.Attributes["angle_DIR"].Value = Math.Round(angle_DIR, 2).ToString();
-
                     bool shareLine = false;
 
                     PointF connectedPt = new PointF();
@@ -1087,11 +1100,7 @@ namespace cgm_decoder
                             path.Attributes["d"].Value += string.Format("L {0} {1} {2} {3} Z ", cgmElement.points[0].X, cgmElement.points[0].Y, p_start.X, p_start.Y);
                         }
                     }
-                    else
-                    {
-                        path.Attributes["d"].Value += arcTO; 
-                    }
-
+                 
 
                     #endregion
                 }
@@ -1135,6 +1144,45 @@ namespace cgm_decoder
                     path.Attributes.Append(cgm_svg.CreateAttribute("lengthAdjust")).Value = "spacingAndGlyphs";
                     path.Attributes.Append(cgm_svg.CreateAttribute("xml:space")).Value = "preserve";
                     path.Attributes.Append(cgm_svg.CreateAttribute("style")).Value += String.Format("font-family:{0};", cgmElement.fontfamily);
+
+                    if (cgmElement.h_alignment_name == "center")
+                    {
+                        path.Attributes.Append(cgm_svg.CreateAttribute("text-anchor")).Value = "middle";
+                    }
+                    else if (cgmElement.h_alignment_name == "right")
+                    {
+                        path.Attributes.Append(cgm_svg.CreateAttribute("text-anchor")).Value = "end";
+                    }
+                    else if (cgmElement.h_alignment_name == "left")
+                    {
+                        path.Attributes.Append(cgm_svg.CreateAttribute("text-anchor")).Value = "start";
+                    }
+                    else
+                    {
+                        path.Attributes.Append(cgm_svg.CreateAttribute("text-anchor")).Value = "start";
+                    }
+
+
+                    if (cgmElement.v_alignment_name == "top")
+                    {
+                        path.Attributes.Append(cgm_svg.CreateAttribute("alignment-baseline")).Value = "top";
+                    }
+                    else if (cgmElement.v_alignment_name == "base")
+                    {
+                        path.Attributes.Append(cgm_svg.CreateAttribute("alignment-baseline")).Value = "baseline ";
+                    }
+                    else if (cgmElement.v_alignment_name == "bottom")
+                    {
+                        path.Attributes.Append(cgm_svg.CreateAttribute("alignment-baseline")).Value = "baseline ";
+                    }
+                    else if (cgmElement.v_alignment_name == "half")
+                    {
+                        path.Attributes.Append(cgm_svg.CreateAttribute("alignment-baseline")).Value = "middle";
+                    }
+                    else
+                    {
+                        path.Attributes.Append(cgm_svg.CreateAttribute("alignment-baseline")).Value = "";
+                    }
 
                     foreach (string[] txtAppend in cgmElement.appendedText)
                     {
@@ -1429,6 +1477,10 @@ namespace cgm_decoder
             {
                 cgm_svg.Save(@"C:\Users\795627\Desktop\cmg_svg.svg");
             }
+            else if( pic_idx == lstSheet)
+            {
+                cgm_svg.Save(String.Format(@"C:\Users\795627\Desktop\cmg_svg_{0}_{1}.svg", vdcIdx.ToString(), pic_idx.ToString()));
+            }
         }
 
         /// <summary>
@@ -1456,6 +1508,10 @@ namespace cgm_decoder
         {
             #region Cgm_Element properties
             public Bitmap rasterImage;
+            public float imageRotation;
+            public float imageScale;
+            public float imageScale_delta_y;
+            public float imageScale_delta_x;
             public int vdc_idx;
 
             public PointF beginTilePoint;
@@ -1557,6 +1613,9 @@ namespace cgm_decoder
             public string hatch_id;
             public string color_model_idx;
             public string pattern_idx;
+            public string lineSizeMode;
+            public string edgeSizeMode;
+            public string markerSizeMode;
             public string lineJoin;
             public string lineCap;
             public string lineTypeContinue;
@@ -1572,14 +1631,42 @@ namespace cgm_decoder
             public string colourSelectionMode;
             public string character_set_list;
             public int colour_precision;
+            public int pixel_precision;
             public int colour_idx_precision;
             public int idx_precision;
             public List<Color> colorTable;
+            public List<Color> palette = new List<Color>();
             #endregion
             #region Cgm_Element Methods
 
             public Cgm_Element()
             {
+
+
+                palette = new List<Color>();
+                palette.Add(Color.FromArgb(255, 0, 0, 0));
+                palette.Add(Color.FromArgb(255, 128, 0, 0));
+                palette.Add(Color.FromArgb(255, 255, 0, 0));
+                palette.Add(Color.FromArgb(255, 255, 192, 203));
+                palette.Add(Color.FromArgb(255, 0, 128, 128));
+                palette.Add(Color.FromArgb(255, 0, 128, 0));
+                palette.Add(Color.FromArgb(255, 0, 255, 0));
+
+                palette.Add(Color.FromArgb(255, 64, 224, 208));
+                palette.Add(Color.FromArgb(255, 0, 0, 139));
+                palette.Add(Color.FromArgb(255, 238, 130, 238));
+                palette.Add(Color.FromArgb(255, 0, 0, 255));
+                palette.Add(Color.FromArgb(255, 192, 192, 192));
+                palette.Add(Color.FromArgb(255, 128, 128, 128));
+                palette.Add(Color.FromArgb(255, 128, 128, 0));
+                palette.Add(Color.FromArgb(255, 255, 255, 0));
+                palette.Add(Color.FromArgb(255, 255, 255, 255));
+                
+                
+                imageScale_delta_y = 0;
+                imageScale_delta_x = 0;
+                imageRotation = 0;
+                imageScale = 1;
                 appendedText = new List<string[]>();
                 colorTable = new List<Color>();
                 colourTable_start_idx = 0;
@@ -1592,11 +1679,15 @@ namespace cgm_decoder
                 vdcType = "integer";
                 realType = "floating";
                 vdc_realType = "floating";
+                lineSizeMode = "absolute";
+                edgeSizeMode = "absolute";
+                markerSizeMode = "absolute";
                 isFig = false;
                 colorModel = "RGB";
                 integer_precision = 16;
                 vdc_real_precision = 16;
                 colour_precision = 24;
+                pixel_precision = 24;
                 colour_idx_precision = 8;
                 idx_precision = 16;
                 real_precision = 32;
@@ -1614,8 +1705,8 @@ namespace cgm_decoder
                 characterColor = fillColor = strokeColor = edgeColor = Color.FromArgb(255, 0, 0, 0);
 
                 characterHeight = 16;
-                edgeWidth = 0.5f;
-                strokeWidth = 0.5f;
+                edgeWidth = 10f;
+                strokeWidth = 10f;
                 lineCap = "round";
                 lineJoin = "round";
                 mitreLimit = 0;
@@ -2003,7 +2094,7 @@ namespace cgm_decoder
 
             public Color extractColor(byte[] buffer, ref Color elemColor)
             {
-                if (param_length >= 3)
+                if (buffer.Length >= 3)
                 {
 
                     int red = buffer[0];
@@ -2011,11 +2102,11 @@ namespace cgm_decoder
                     int blue = buffer[2];
                     int alpha = 255;
 
-                    if (param_length == 4)
+                    if (buffer.Length == 4)
                     {
                         alpha = (int)buffer[3];
                     }
-                    if (param_length == 6)
+                    if (buffer.Length == 6)
                     {
                         red = buffer[1];
                         green = buffer[3];
@@ -2024,21 +2115,26 @@ namespace cgm_decoder
                     
                     elemColor = Color.FromArgb(alpha, red, green, blue);
                 }
-                if (param_length == 1)
+                if (buffer.Length == 1)
                 {
-                    if (colorTable != null)
+                    if (colorTable.Count() == 0)
                     {
-                        if (colorTable.Count() > buffer[0])
+                        if(palette.Count() > buffer[0])
                         {
-                            elemColor = colorTable[buffer[0]];
+                            elemColor = palette[buffer[0]];
                         }
-                    }
-                    else if (colorTable == null)
+                        else
+                        {
+                            elemColor = buffer[0] > 0 ? Color.FromArgb(255, buffer[0], buffer[0], buffer[0]) : Color.FromArgb(255, 255, 255, 255);
+                        }
+                    }                
+                    else if (colorTable.Count() > buffer[0])
                     {
-                        elemColor = buffer[0] > 0 ? Color.FromArgb(255, 0, 0, 0) :Color.FromArgb(255, 255, 255, 255);
+                        elemColor = colorTable[buffer[0]];
                     }
+
                 }
-                else if (param_length < 3)
+                else if (buffer.Length < 3)
                 {
                     colour_precision = 8 * param_length;
                     int colr_idx = (int)bytes_getValue_color(buffer, colour_precision);
@@ -2139,11 +2235,8 @@ namespace cgm_decoder
                     MemoryStream m = new MemoryStream();
                     rasterImage.Save(m, System.Drawing.Imaging.ImageFormat.Png);
                     byte[] imageBytes = m.ToArray();
-                    base64String = Convert.ToBase64String(imageBytes,Base64FormattingOptions.None);
+                    base64String = Convert.ToBase64String(imageBytes, Base64FormattingOptions.None);
                 }
-                StreamWriter sw = new StreamWriter("dsfsdfsd.txt", false);
-                sw.WriteLine(base64String);
-                sw.Close();
                 return base64String;
             }
 
@@ -2190,21 +2283,53 @@ namespace cgm_decoder
                     words_cnt -= 1;
                 }
                 PointF[] pqr = Cgm_Elements.Last().points.ToArray();
+
+                
+                double angle;
+                double angle2;
+                float slope;
+                float b_int;
+                
+                double PR = distance_180_xrs(pqr[0], pqr[2], out angle, out angle2, out slope, out b_int);
+                
+                float sy = (float)(PR * Math.Sin(angle * Math.PI / 180));
+                float sx = (float)(PR * Math.Cos(angle * Math.PI / 180));
+                PointF pointS = new PointF( pqr[1].X - sx, pqr[1].Y - sy);
+
+                Cgm_Elements.Last().points.Add(pointS);
+                pqr = Cgm_Elements.Last().points.ToArray();
+
+
+                double PQ = distance_180_xrs(pqr[0], pqr[1], out angle, out angle2, out slope, out b_int);                
+                double QR = distance_180_xrs(pqr[0], pqr[2], out angle, out angle2, out slope, out b_int);
+                
+
                 List<float> xVals = pqr.Select(fd => fd.X).ToList();
                 List<float> yVals = pqr.Select(fd => fd.Y).ToList();
                 xVals.Sort();
                 yVals.Sort();
 
-                float w = (float)(Math.Abs( xVals.First() - xVals.Last()));
-                float h = (float)(Math.Abs( yVals.First() - yVals.Last()));
+                float w_rt = (float)(Math.Abs( xVals.First() - xVals.Last()));
+                float h_rt = (float)(Math.Abs( yVals.First() - yVals.Last()));
+                
+                float w = (float)PR;
+                float h = (float)QR;
 
                 if (w < 1 && h < 1)
                 {
                     w *= 1000;
                     h *= 1000;
+
+                    w_rt *= 1000;
+                    h_rt *= 1000;
+
+                    
+                    Cgm_Elements.Last().imageScale = 1f / 1000;
+                    
                 }
                 
 
+                angle = -1 * Math.Round(angle, 0);
 
                 precision = Cgm_Elements.Last().getPrecision_int();
                 byteLen = precision / 8;         
@@ -2219,9 +2344,9 @@ namespace cgm_decoder
 
                 buffer = new byte[byteLen];
                 bytesRead += br.Read(buffer, 0, buffer.Length);
-                float color_precision = Cgm_Elements.Last().bytes_getValue_int(buffer, precision);
+                int color_precision = (int)Cgm_Elements.Last().bytes_getValue_int(buffer, precision);
 
-
+                int bcnt = Cgm_Elements.Last().idx_precision/8;
                 buffer = new byte[2];
                 bytesRead += br.Read(buffer, 0, buffer.Length);
                 float row_mode = Cgm_Elements.Last().bytes_getValue_int(buffer, 16);
@@ -2288,49 +2413,141 @@ namespace cgm_decoder
                 else if (row_mode == 1)
                 {
                     #region MyRegion
-                    buffer = new byte[paramLen - bytesRead];
-                    bytesRead += br.Read(buffer, 0, buffer.Length);
-                    float pixelSize = color_precision;
-                    //float pixelSize = buffer.Length / ((float)(nx * ny));
-                    pixelSize = Math.Max(1, pixelSize);
-                    byte[] pixel = new byte[(int)pixelSize];
-                    for (int i = 0, j = 0; i < buffer.Length; i++)
+                    int len = paramLen - bytesRead;
+                    
+                    
+                    for (int i = 0; i < len; i++)
                     {
-                        pixel[j++] = buffer[i];
-                        if (j % pixelSize == 0 && i > 0)
+                        Color elemColor = new Color();
+                        int colorBytes = color_precision / 8;                                                
+                        if(colorBytes == 4)
                         {
-                            j = 0;
-                            Color elemColor = new Color();
-                            pixels.Add(Cgm_Elements.Last().pixelColor(pixel, ref elemColor, (int)pixelSize));
-                            pixel = new byte[(int)pixelSize];
+                            buffer = new byte[colorBytes];
+                            bytesRead += br.Read(buffer, 0, buffer.Length);
+                             elemColor = Color.FromArgb(buffer[0], (int)buffer[1], (int)buffer[2], (int)buffer[3]);
+                             pixels.Add(elemColor);
                         }
-                        else if (pixelSize == 1)
+                        else if (colorBytes == 3) 
                         {
-                            j = 0;
-                            Color elemColor = new Color();
-                            pixels.Add(Cgm_Elements.Last().pixelColor(pixel, ref elemColor, (int)pixelSize));
-                            pixel = new byte[(int)pixelSize];
+                             elemColor = Color.FromArgb(255, (int)buffer[0], (int)buffer[1], (int)buffer[2]);
+                             pixels.Add(elemColor);
                         }
+                        else if (colorBytes == 1)
+                        {
+                            buffer = new byte[colorBytes];
+                            bytesRead += br.Read(buffer, 0, buffer.Length);
+                            int cval = (int)Cgm_Elements.Last().bytes_getValue_int(buffer, (int)color_precision);
+                            string binStr = Convert.ToString(cval, 2).PadLeft(8, '0');
+                            binStr = binStr.PadLeft(8, '0');
+                            buffer = new byte[4];
+                            for (int j = 0; j < 4; j++)
+                            {
+                                string c = binStr.ToCharArray()[i * 2].ToString() + binStr.ToCharArray()[(i * 2) + 1].ToString();
+                                 buffer[j] = (byte)Convert.ToUInt16(c, 10);
+                            }
+                            elemColor = Color.FromArgb(255, (int)buffer[0], (int)buffer[1], (int)buffer[2]);
+                            pixels.Add(elemColor);
+                        }                        
+                        else if (color_precision == 1) 
+                        {
+                            buffer = new byte[1];
+                            bytesRead += br.Read(buffer, 0, buffer.Length);
+                            int cval = (int)Cgm_Elements.Last().bytes_getValue_int(buffer, 8);
+                            string binStr = Convert.ToString(cval, 2).PadLeft(8, '0');
+                            binStr = binStr.PadLeft(8, '0');
+                            foreach (char c in binStr.ToCharArray())
+                            {
+                                elemColor = c == '0' ? Color.Black : Color.White;
+                                pixels.Add(elemColor);
+                            }                            
+                        }                        
+                        else if (color_precision == 2) 
+                        {
+                            buffer = new byte[1];
+                            bytesRead += br.Read(buffer, 0, buffer.Length);
+                            int cval = (int)Cgm_Elements.Last().bytes_getValue_int(buffer, 8);
+                            string binStr = Convert.ToString(cval, 2).PadLeft(8,'0');
+                            for (int j = 0; j < 4; j++)
+                            {
+                                string c = binStr.ToCharArray()[j * 2].ToString() + binStr.ToCharArray()[(j * 2) + 1].ToString();
+                                int intensity = (byte)Convert.ToUInt16(c, 2);
+                                intensity = intensity  * 255 / 7;
+                                elemColor = Color.FromArgb(255, intensity, intensity, intensity);
+                                pixels.Add(elemColor);
+                            }
 
+                        }
+                        else if (color_precision == 4) 
+                        {
+                            buffer = new byte[1];
+                            bytesRead += br.Read(buffer, 0, buffer.Length);
+                            int cval = (int)Cgm_Elements.Last().bytes_getValue_int(buffer, 8);
+                            string binStr = Convert.ToString(cval, 2).PadLeft(8, '0');
+
+                            
+
+                            for (int j = 0; j < 2; j++)
+                            {
+                                string c =
+                                    binStr.ToCharArray()[(j * 4) + 0].ToString() +
+                                    binStr.ToCharArray()[(j * 4) + 1].ToString() +
+                                    binStr.ToCharArray()[(j * 4) + 2].ToString() +
+                                    binStr.ToCharArray()[(j * 4) + 3].ToString();
+                                int intensity = (byte)Convert.ToUInt16(c, 2);                                
+                                elemColor = Cgm_Elements.Last().colorTable[intensity];
+                                pixels.Add(elemColor);
+                            }
+                        }
+                        else if (color_precision == 0)
+                        {
+                            buffer = new byte[Cgm_Elements.Last().colour_idx_precision / 8];
+                            int idx = (int)Cgm_Elements.Last().bytes_getValue_int(buffer, (int)color_precision);
+                            bytesRead += br.Read(buffer, 0, buffer.Length);
+                            elemColor = new Color();
+                            if (idx < Cgm_Elements.Last().colorTable.Count)
+                            {
+                                elemColor = Cgm_Elements.Last().colorTable[idx];
+                            }
+                            pixels.Add(elemColor);
+                        }
+                        
+
+                        
+                        
+                        
                     }
+
                     #endregion
                 }
 
                 #region Create Bitmap
-                Cgm_Elements.Last().rasterImage  = new Bitmap((int)w, (int)h);
+                Cgm_Elements.Last().rasterImage = new Bitmap((int)w_rt, (int)h_rt);
+                Cgm_Elements.Last().imageRotation = 0;
+                
                 Graphics g = Graphics.FromImage(Cgm_Elements.Last().rasterImage);
-                float xrex = w / nx;
-                float yres = h / ny;
-                int k = 0;
-                for (int i = 0; i < ny; i += (int)yres)
+                if (angle != 0)
                 {
-                    for (int j = 0; j < nx; j += (int)xrex)
+                    g.TranslateTransform(0, h_rt / 2);
+                    g.RotateTransform((float)angle);
+                }
+                
+
+                float xrex =(float)Math.Round(w / nx, 0);
+
+                float yres = (float)Math.Round(h / ny, 0);
+
+                int k = 0;
+                
+                for (int i = 0; i < ny; i ++)
+                {
+                    for (int j = 0; j < nx; j ++)
                     {
                         Color pixel_c = pixels[k];
-                        g.FillRectangle(new SolidBrush(pixel_c), j * xrex, i * yres, xrex, yres);
+                        g.FillRectangle(new SolidBrush(pixel_c), j * xrex, i * yres, (int)xrex, (int)yres);
                         k++;
                     }
                 }
+                g.TranslateTransform(-w / 2, -h / 2); 
                 
                 #endregion
                 if (br.BaseStream.Position % 2 != 0)
@@ -2503,6 +2720,7 @@ namespace cgm_decoder
             else if (elemName == "BITONAL TILE")
             {
                 #region MyRegion
+                #region MyRegion
                 Cgm_Element beginTileArray = Cgm_Elements.Last(fd => fd.elem_Name == "BEGIN TILE ARRAY");
                 Cgm_Elements.Last().beginTilePoint = beginTileArray.beginTilePoint;
                 Cgm_Elements.Last().cellSizeInPathDirection = beginTileArray.cellSizeInPathDirection;
@@ -2595,37 +2813,45 @@ namespace cgm_decoder
                             Array.Resize(ref compressedData, len);
                         }
                     }
+                    #region MyRegion
+                    string filename = DateTime.Now.Ticks.ToString();
 
+                    MemoryStream ms = new MemoryStream();
+                    TiffStream ts = new TiffStream();
+                    using (Tiff output = Tiff.ClientOpen("in-memory", "w", ms, ts))
                     {
 
-                        string filename = DateTime.Now.Ticks.ToString();
-                        using (Tiff output = Tiff.Open(tempDir + "//" + filename + ".tif", "w"))
-                        {
+                        output.SetField(TiffTag.IMAGEWIDTH, w);
+                        output.SetField(TiffTag.IMAGELENGTH, h);
+                        output.SetField(TiffTag.SAMPLESPERPIXEL, 1);
+                        output.SetField(TiffTag.BITSPERSAMPLE, 1);
+                        output.SetField(TiffTag.ROWSPERSTRIP, h);
+                        output.SetField(TiffTag.STRIPBYTECOUNTS, compressedData.Length);
+                        output.SetField(TiffTag.XRESOLUTION, 600);
+                        output.SetField(TiffTag.YRESOLUTION, 600);
+                        output.SetField(TiffTag.ORIENTATION, 1);
+                        output.SetField(TiffTag.PLANARCONFIG, PlanarConfig.CONTIG);
+                        output.SetField(TiffTag.RESOLUTIONUNIT, ResUnit.INCH);
+                        output.SetField(TiffTag.PHOTOMETRIC, 0);
+                        output.SetField(TiffTag.COMPRESSION, Compression.CCITT_T6);
+                        output.SetField(TiffTag.FILLORDER, 1);
+                        output.WriteRawStrip(0, compressedData, compressedData.Length);
+                        
 
-                            output.SetField(TiffTag.IMAGEWIDTH, w);
-                            output.SetField(TiffTag.IMAGELENGTH, h);
-                            output.SetField(TiffTag.SAMPLESPERPIXEL, 1);
-                            output.SetField(TiffTag.BITSPERSAMPLE, 1);
-                            output.SetField(TiffTag.ROWSPERSTRIP, h);
-                            output.SetField(TiffTag.STRIPBYTECOUNTS, compressedData.Length);
-                            output.SetField(TiffTag.XRESOLUTION, 600);
-                            output.SetField(TiffTag.YRESOLUTION, 600);
-                            output.SetField(TiffTag.ORIENTATION, 1);
-                            output.SetField(TiffTag.PLANARCONFIG, PlanarConfig.CONTIG);
-                            output.SetField(TiffTag.RESOLUTIONUNIT, ResUnit.INCH);
-                            output.SetField(TiffTag.PHOTOMETRIC, 0);
-                            output.SetField(TiffTag.COMPRESSION, Compression.CCITT_T6);
-                            output.SetField(TiffTag.FILLORDER, 1);
-                            output.SetField(TiffTag.SOFTWARE, "BJHAMLTN");
-                            output.WriteRawStrip(0, compressedData, compressedData.Length);
-                            output.Close();
-                        }
+                        output.CheckpointDirectory();
+                        long streamSize = output.GetStream().Size(output.Clientdata());
+                                                
+                        ms.Position = 0;
 
-                        Cgm_Elements.Last().rasterImage = new Bitmap(tempDir + "//" + filename + ".tif");
+                        Cgm_Elements.Last().rasterImage = new Bitmap(ms);
                         Cgm_Elements.Last().rasterImage.MakeTransparent(Color.White);
+                        
+                        output.Close();
+                        ms.Close();
                     }
-
-                }
+                    #endregion
+                } 
+                #endregion
             }
             else if (elemName == "PATTERN TABLE")
             {
@@ -3137,7 +3363,7 @@ namespace cgm_decoder
             }
             else if (elemName == "ELLIPTICAL ARC")
             {
-
+                int sigDigits = 0;
                 #region MyRegion
                 int vdc_cnt = 3;
                 int precision = Cgm_Elements.Last().getPrecision_vdc();
@@ -3149,7 +3375,7 @@ namespace cgm_decoder
 
                     float px = 0;
 
-                    px = (float)Math.Round(Cgm_Elements.Last().bytes_getValue(buffer, precision), 2);
+                    px = (float)Math.Round(Cgm_Elements.Last().bytes_getValue(buffer, precision), sigDigits);
 
                     buffer = new byte[byteLen];
                     br.Read(buffer, 0, buffer.Length);
@@ -3157,7 +3383,7 @@ namespace cgm_decoder
 
 
 
-                    py = (float)Math.Round(Cgm_Elements.Last().bytes_getValue(buffer, precision), 2);
+                    py = (float)Math.Round(Cgm_Elements.Last().bytes_getValue(buffer, precision), sigDigits);
                     Cgm_Elements.Last().points.Add(new PointF()
                     {
                         X = px,
@@ -3176,11 +3402,11 @@ namespace cgm_decoder
 
                     br.Read(buffer, 0, buffer.Length);
 
-                    px = (float)Math.Round(Cgm_Elements.Last().bytes_getValue(buffer, precision), 2);
+                    px = (float)Math.Round(Cgm_Elements.Last().bytes_getValue(buffer, precision), sigDigits);
 
                     buffer = new byte[byteLen];
                     br.Read(buffer, 0, buffer.Length);
-                    py = (float)Math.Round(Cgm_Elements.Last().bytes_getValue(buffer, precision), 2);
+                    py = (float)Math.Round(Cgm_Elements.Last().bytes_getValue(buffer, precision), sigDigits);
 
 
                     Cgm_Elements.Last().points.Add(new PointF()
@@ -3197,7 +3423,7 @@ namespace cgm_decoder
             {
                 #region MyRegion
                 int words_cnt = 5;
-
+                int sigDigits = 1;
                 int p = Cgm_Elements.Last().getPrecision();
                 int buf_len = p / 8;
 
@@ -3209,13 +3435,13 @@ namespace cgm_decoder
 
 
 
-                    float px = (float)Math.Round(Cgm_Elements.Last().bytes_getValue(buffer, p), 2);
+                    float px = (float)Math.Round(Cgm_Elements.Last().bytes_getValue(buffer, p), sigDigits);
 
                     buffer = new byte[buf_len];
                     br.Read(buffer, 0, buffer.Length);
 
 
-                    float py = (float)Math.Round(Cgm_Elements.Last().bytes_getValue(buffer, p), 2);
+                    float py = (float)Math.Round(Cgm_Elements.Last().bytes_getValue(buffer, p), sigDigits);
 
                     Cgm_Elements.Last().points.Add(new PointF()
                     {
@@ -3606,6 +3832,10 @@ namespace cgm_decoder
                 buffer = new byte[paramLen];
                 br.Read(buffer, 0, buffer.Length);
                 Cgm_Elements.Last().colourSelectionMode = buffer.Last() == 0 ? "indexed colour mode" : "direct colour mode";
+                if (buffer.Last() == 1)
+                {
+                    Cgm_Elements.Last().colour_precision = Cgm_Elements.Last().pixel_precision;
+                }
                 #endregion
             }
             else if (elemName == "COLOUR MODEL")
@@ -3640,7 +3870,103 @@ namespace cgm_decoder
 
                 #endregion
             }
+            else if (elemName == "COLOUR VALUE EXTENT")
+            {
+                #region MyRegion
+                if (paramLen == 6)
+                {
+                    Cgm_Elements.Last().colour_value_extent = "RGB/CMYK";
+                    Cgm_Elements.Last().colour_value_extent_size = paramLen / 2;
+                    buffer = new byte[3];
+                    br.Read(buffer, 0, buffer.Length);
 
+                    Color cc = Color.FromArgb(255, buffer[0], buffer[1], buffer[2]);
+                    Cgm_Elements.Last().min_rgb = cc;
+                    buffer = new byte[3];
+                    br.Read(buffer, 0, buffer.Length);
+                    cc = Color.FromArgb(255, buffer[0], buffer[1], buffer[2]);
+                    Cgm_Elements.Last().max_rgb = cc;
+                    Cgm_Elements.Last().pixel_precision = 8 *  (paramLen / 2);
+                }
+                else if (paramLen == 12)
+                {
+                    buffer = new byte[paramLen];
+                    br.Read(buffer, 0, buffer.Length);
+                }
+
+                #endregion
+            }
+            else if (elemName == "COLOUR TABLE")
+            {
+                #region MyRegion
+
+                buffer = new byte[Cgm_Elements.Last().colour_idx_precision / 8];
+                br.Read(buffer, 0, buffer.Length);
+                Cgm_Elements.Last().colourTable_start_idx = (int)Cgm_Elements.Last().bytes_getValue_int(buffer, Cgm_Elements.Last().colour_idx_precision);
+
+                while (Cgm_Elements.Last().colorTable.Count < Cgm_Elements.Last().colourTable_start_idx)
+                {
+                    Cgm_Elements.Last().colorTable.Add(Color.FromArgb(255, 255, 255, 255));
+                }
+
+                List<Color> nwColorTable = new List<Color>();
+                buffer = new byte[paramLen - buffer.Length];
+                if (buffer.Length != 0)
+                {
+
+                    br.Read(buffer, 0, buffer.Length);
+                    int st_idx = buffer[0];
+                    if (Cgm_Elements.Last().colour_precision == 16)
+                    {
+                        int[] idx_breaks = Enumerable.Range(0, buffer.Length / 6).Select(x => x * 6).ToArray();
+                        nwColorTable = (idx_breaks.Select(i => Color.FromArgb(255, buffer[i + 1], buffer[i + 3], buffer[i + 5])).ToList());
+                    }
+                    else if (Cgm_Elements.Last().colour_precision == 8)
+                    {
+                        int[] idx_breaks = Enumerable.Range(0, buffer.Length / 3).Select(x => x * 3).ToArray();
+                        if (buffer.Length % 3 == 0)
+                        {
+                            nwColorTable = (idx_breaks.Select(i => Color.FromArgb(255, buffer[i + 0], buffer[i + 1], buffer[i + 2])).ToList());
+                        }
+                        else
+                        {
+                            nwColorTable = (idx_breaks.Select(i => Color.FromArgb(255, buffer[i + 1], buffer[i + 2], buffer[i + 3])).ToList());
+                        }
+
+                    }
+                    else if (Cgm_Elements.Last().colorModel == "RGB")
+                    {
+                        int[] idx_breaks = Enumerable.Range(0, buffer.Length / 3).Select(x => x * 3).ToArray();
+                        nwColorTable = (idx_breaks.Select(i => Color.FromArgb(255, buffer[i], buffer[i + 1], buffer[i + 2])).ToList());
+                    }
+                    else if (Cgm_Elements.Last().colorModel == "CMYK")
+                    {
+                        int[] idx_breaks = Enumerable.Range(0, buffer.Length / 4).Select(x => x * 4).ToArray();
+                        nwColorTable = (idx_breaks.Select(i => Color.FromArgb(buffer[i + 3], buffer[i], buffer[i + 1], buffer[i + 2])).ToList());
+                    }
+
+                    Cgm_Elements.Last().colorTable.InsertRange(Cgm_Elements.Last().colourTable_start_idx, nwColorTable);
+                }
+
+                #endregion
+            }
+            else if (elemName == "COLOUR PRECISION")
+            {
+                #region MyRegion
+                buffer = new byte[paramLen];
+                br.Read(buffer, 0, buffer.Length);
+                Cgm_Elements.Last().pixel_precision = 3 * (int)Cgm_Elements.Last().bytes_getValue_int(buffer, paramLen * 8);
+                Cgm_Elements.Last().colour_precision =  (int)Cgm_Elements.Last().bytes_getValue_int(buffer, paramLen * 8);
+                #endregion
+            }
+            else if (elemName == "COLOUR INDEX PRECISION")
+            {
+                #region MyRegion
+                buffer = new byte[paramLen];
+                br.Read(buffer, 0, buffer.Length);
+                Cgm_Elements.Last().colour_idx_precision = buffer.Last();
+                #endregion
+            }
             else if (elemName == "INTERIOR STYLE SPECIFICATION MODE")
             {
                 #region MyRegion
@@ -3741,7 +4067,7 @@ namespace cgm_decoder
                 br.Read(buffer, 0, buffer.Length);
                 float fill_idx = Cgm_Elements.Last().bytes_getValue_int(buffer, Cgm_Elements.Last().idx_precision);
 
-                buffer = new byte[1];
+                buffer = new byte[bcnt];
                 br.Read(buffer, 0, buffer.Length);
                 float interior_style = Cgm_Elements.Last().bytes_getValue_int(buffer, Cgm_Elements.Last().idx_precision);
 
@@ -3973,6 +4299,7 @@ namespace cgm_decoder
                         str = "mm";
                         break;
                 }
+                Cgm_Elements.Last().lineSizeMode = str;
                 #endregion
             }
             else if (elemName == "MARKER SIZE SPECIFICATION MODE")
@@ -3996,6 +4323,7 @@ namespace cgm_decoder
                         str = "mm";
                         break;
                 }
+                Cgm_Elements.Last().markerSizeMode = str;
                 #endregion
             }
             else if (elemName == "EDGE WIDTH SPECIFICATION MODE")
@@ -4019,6 +4347,8 @@ namespace cgm_decoder
                         str = "mm";
                         break;
                 }
+                Cgm_Elements.Last().edgeSizeMode = str;
+
                 #endregion
             }
             else if (elemName == "LINE JOIN")
@@ -4323,111 +4653,7 @@ namespace cgm_decoder
                 br.Read(buffer, 0, buffer.Length);
                 float edge_pattern_offset = Cgm_Elements.Last().bytes_getValue_real(buffer, Cgm_Elements.Last().real_precision);
             }
-            else if (elemName == "COLOUR MODEL")
-            {
-                #region MyRegion
-                buffer = new byte[paramLen];
-                br.Read(buffer, 0, buffer.Length);
-                Cgm_Elements.Last().colorModel = buffer[1] > 5 ?
-                    (new string[] { "", "RGB", "CIELAB", " CIELUV", "CMYK", "RGB-related" })[buffer[1]] : "reserved for registered values";
-                #endregion
-            }
-            else if (elemName == "COLOUR VALUE EXTENT")
-            {
-                #region MyRegion
-                if (paramLen == 6)
-                {
-                    Cgm_Elements.Last().colour_value_extent = "RGB/CMYK";
-                    Cgm_Elements.Last().colour_value_extent_size = paramLen / 2;
-                    buffer = new byte[3];
-                    br.Read(buffer, 0, buffer.Length);
 
-                    Color cc = Color.FromArgb(255, buffer[0], buffer[1], buffer[2]);
-                    Cgm_Elements.Last().min_rgb = cc;
-                    buffer = new byte[3];
-                    br.Read(buffer, 0, buffer.Length);
-                    cc = Color.FromArgb(255, buffer[0], buffer[1], buffer[2]);
-                    Cgm_Elements.Last().max_rgb = cc;
-                    Cgm_Elements.Last().colour_precision *= (paramLen / 2);
-                }
-                else if (paramLen == 12)
-                {
-                    buffer = new byte[paramLen];
-                    br.Read(buffer, 0, buffer.Length);
-                }
-
-                #endregion
-            }
-            else if (elemName == "COLOUR TABLE")
-            {
-                #region MyRegion
-
-                buffer = new byte[Cgm_Elements.Last().colour_idx_precision / 8];
-                br.Read(buffer, 0, buffer.Length);
-                Cgm_Elements.Last().colourTable_start_idx = (int)Cgm_Elements.Last().bytes_getValue_int(buffer, Cgm_Elements.Last().colour_idx_precision);
-
-                while (Cgm_Elements.Last().colorTable.Count < Cgm_Elements.Last().colourTable_start_idx)
-                {
-                    Cgm_Elements.Last().colorTable.Add(Color.FromArgb(255, 255, 255, 255));
-                }
-
-                List<Color> nwColorTable = new List<Color>();
-                buffer = new byte[paramLen - buffer.Length];
-                if (buffer.Length != 0)
-                {
-
-                    br.Read(buffer, 0, buffer.Length);
-                    int st_idx = buffer[0];
-                    if (Cgm_Elements.Last().colour_precision == 16)
-                    {
-                        int[] idx_breaks = Enumerable.Range(0, buffer.Length / 6).Select(x => x * 6).ToArray();
-                        nwColorTable = (idx_breaks.Select(i => Color.FromArgb(255, buffer[i + 1], buffer[i + 3], buffer[i + 5])).ToList());
-                    }
-                    else if (Cgm_Elements.Last().colour_precision == 8)
-                    {
-                        int[] idx_breaks = Enumerable.Range(0, buffer.Length / 3).Select(x => x * 3).ToArray();
-                        if (buffer.Length % 3 == 0)
-                        {
-                            nwColorTable = (idx_breaks.Select(i => Color.FromArgb(255, buffer[i + 0], buffer[i + 1], buffer[i + 2])).ToList());
-                        }
-                        else
-                        {
-                            nwColorTable = (idx_breaks.Select(i => Color.FromArgb(255, buffer[i + 1], buffer[i + 2], buffer[i + 3])).ToList());
-                        }
-
-                    }
-                    else if (Cgm_Elements.Last().colorModel == "RGB")
-                    {
-                        int[] idx_breaks = Enumerable.Range(0, buffer.Length / 3).Select(x => x * 3).ToArray();
-                        nwColorTable = (idx_breaks.Select(i => Color.FromArgb(255, buffer[i], buffer[i + 1], buffer[i + 2])).ToList());
-                    }
-                    else if (Cgm_Elements.Last().colorModel == "CMYK")
-                    {
-                        int[] idx_breaks = Enumerable.Range(0, buffer.Length / 4).Select(x => x * 4).ToArray();
-                        nwColorTable = (idx_breaks.Select(i => Color.FromArgb(buffer[i + 3], buffer[i], buffer[i + 1], buffer[i + 2])).ToList());
-                    }
-
-                    Cgm_Elements.Last().colorTable.InsertRange(Cgm_Elements.Last().colourTable_start_idx, nwColorTable);
-                }
-
-                #endregion
-            }
-            else if (elemName == "COLOUR PRECISION")
-            {
-                #region MyRegion
-                buffer = new byte[paramLen];
-                br.Read(buffer, 0, buffer.Length);
-                Cgm_Elements.Last().colour_precision = buffer[1];
-                #endregion
-            }
-            else if (elemName == "COLOUR INDEX PRECISION")
-            {
-                #region MyRegion
-                buffer = new byte[paramLen];
-                br.Read(buffer, 0, buffer.Length);
-                Cgm_Elements.Last().colour_idx_precision = buffer.Last();
-                #endregion
-            }
             else if (elemName == "INDEX PRECISION")
             {
                 #region MyRegion
@@ -4484,6 +4710,14 @@ namespace cgm_decoder
                 br.Read(buffer, 0, buffer.Length);
                 float f = Cgm_Elements.Last().bytes_getValue_edge(buffer);
                 Cgm_Elements.Last().strokeWidth = f;
+                if(Cgm_Elements.Last().lineSizeMode == "scaled")
+                {
+                    Cgm_Elements.Last().strokeWidth = 10 * f;
+                }
+                else if (Cgm_Elements.Last().lineSizeMode == "fractional")
+                {
+                    Cgm_Elements.Last().strokeWidth = Cgm_Elements.Last().page_width * f;
+                }
                 #endregion
             }
 
@@ -4495,6 +4729,14 @@ namespace cgm_decoder
                 br.Read(buffer, 0, buffer.Length);
                 float f = Cgm_Elements.Last().bytes_getValue_edge(buffer);
                 Cgm_Elements.Last().edgeWidth = f;
+                if (Cgm_Elements.Last().edgeSizeMode == "scaled")
+                {
+                    Cgm_Elements.Last().edgeWidth = 10 * f;
+                }
+                else if (Cgm_Elements.Last().lineSizeMode == "fractional")
+                {
+                    Cgm_Elements.Last().edgeWidth = Cgm_Elements.Last().page_width * f;
+                }
                 #endregion
             }
             else if (elemName == "CHARACTER SPACING")
@@ -4599,6 +4841,7 @@ namespace cgm_decoder
             }
             else if (elemName == "BEGIN PICTURE")
             {
+                Cgm_Elements.Last().picture_idx = picture_idx++;
                 #region MyRegion
                 if (paramLen > 0)
                 {
@@ -4626,7 +4869,7 @@ namespace cgm_decoder
                 br.Read(buffer, 0, buffer.Length);
                 buffer = buffer.Where(fd => fd >= 32).ToArray();
                 str = System.Text.Encoding.Default.GetString(buffer);
-                Cgm_Elements.Last().picture_idx = picture_idx++;
+                
                 #endregion
             }
             else if (elemName == "BEGIN FIGURE")
@@ -4991,6 +5234,7 @@ namespace cgm_decoder
                 vdc_real_precision = lastElem.vdc_real_precision,
                 real_precision = lastElem.real_precision,
                 colour_precision = lastElem.colour_precision,
+                pixel_precision = lastElem.pixel_precision,
                 colour_idx_precision = lastElem.colour_idx_precision,
                 idx_precision = lastElem.idx_precision,
                 colourSelectionMode = lastElem.colourSelectionMode,
@@ -5010,7 +5254,10 @@ namespace cgm_decoder
                 v_alignment_name = lastElem.v_alignment_name,
                 h_alignment_name = lastElem.h_alignment_name,
                 v_alignment = lastElem.v_alignment,
-                h_alignment = lastElem.h_alignment
+                h_alignment = lastElem.h_alignment,
+                edgeSizeMode = lastElem.edgeSizeMode,
+                lineSizeMode = lastElem.lineSizeMode,
+                markerSizeMode = lastElem.markerSizeMode 
             });
 
             Cgm_Elements.Last().elemParams = new byte[paramLen];
@@ -5132,7 +5379,7 @@ namespace cgm_decoder
             
             double dist = Math.Sqrt(Math.Pow(p2.X - p1.X, 2) + Math.Pow(p2.Y - p1.Y, 2));            
             angle = Math.Atan2((p2.Y - p1.Y),  (p2.X - p1.X)) * 180 / Math.PI;
-            angle = Math.Round(angle, 1);
+            angle = Math.Round(angle, 2);
             int sign = Math.Sign(angle);
             slope =   ((p2.Y - p1.Y) / (p2.X - p1.X));
             b_int = p1.X;
@@ -5158,7 +5405,7 @@ namespace cgm_decoder
             
             if (float.IsNegativeInfinity(m1) && m2 == 0)
             {
-                angle_crx = Math.Sign(p2.X) -1 * 90;
+                angle_crx = Math.Sign(p2.X)  * -90;
                 
             }
             else if (float.IsInfinity(m1) && m2 == 0)
@@ -5181,17 +5428,19 @@ namespace cgm_decoder
             {
                 double v1 = Math.Atan2(p1.Y, p1.X) * 180 / Math.PI;
                 double v2 = Math.Atan2(p2.Y, p2.X) * 180 / Math.PI;
-                if (v2 < 0)
+    
+                if (v2 < v1 && v1 <= 180 + v2)
                 {
-                    v2 = 360 + v2;
+                    angle_crx = v1 - v2;
                 }
-                if (v1 < 0)
+                else
                 {
-                    v1 = 360 + v1;
+                    angle_crx = (360 + v1) - v2;
+                    if (angle_crx > 180)
+                    {
+                        angle_crx = angle_crx - 360;
+                    }
                 }
-
-                angle_crx = v1 - v2;
-
                
                 
             }
@@ -5199,19 +5448,31 @@ namespace cgm_decoder
             {
                 double v1 = Math.Atan2(p1.Y, p1.X) * 180 / Math.PI;
                 double v2 = Math.Atan2(p2.Y, p2.X) * 180 / Math.PI;
-                if (v2 < 0)
+                v1 = Math.Round(v1, 3);
+                v2 = Math.Round(v2, 3);
+                if ( v2 < v1 && v1 <= 180 + v2)
                 {
-                    v2 = 360 + v2;
+                     angle_crx =  v1- v2;
                 }
-                if (v1 < 0)
+                else if (v2 < (360 + v1) && (360 + v1) <= 180 + v2)
                 {
-                    v1 = 360 + v1;
+                    angle_crx = (360 + v1) - v2;
                 }
-
-                angle_crx = v1 - v2;
-                //angle_crx = Math.Atan2(m1 - m2, (1 + (m1 * m2))) * 180 / Math.PI;   
+                else if (180 + v2 <  v1 && v1 > 0 )
+                {
+                    angle_crx = v1 - v2;
+                    if (angle_crx > 180)
+                    {
+                        angle_crx = (angle_crx - 360);
+                    }
+                }
+                else
+                {
+                    angle_crx = (360 + v1) - v2 - 360;
+                }
+ 
             }
-            //angle_crx = -angle_crx;
+            angle_crx = Math.Round(angle_crx, 3);
             return dist;
         }
         
@@ -5228,6 +5489,7 @@ namespace cgm_decoder
         {
             double angle_p1 = 0;
             double angle_p2 = 0;
+            double angle_1 = 0;
             float slope_D1;
             float slope_D2;
             float b_1;
@@ -5236,6 +5498,12 @@ namespace cgm_decoder
             rx = distance_180(cgmElement.points[0], cgmElement.points[1], out angle_p1, out slope_D1, out b_1);
             ry = distance_180(cgmElement.points[0], cgmElement.points[2], out angle_p2, out slope_D2, out b_2);
             angle_2 = (angle_p2 - angle_p1);
+
+            //PointF p1 = PointF.Subtract(cgmElement.points[1], new SizeF(cgmElement.points[0].X, cgmElement.points[0].Y));
+            //PointF p2 = PointF.Subtract(cgmElement.points[2], new SizeF(cgmElement.points[0].X, cgmElement.points[0].Y));
+            //distance_180_xrs(p1, p2, out angle_1, out angle_2, out slope_D2, out b_2);
+
+            
             PointF rP_minor = cgmElement.points[2];
             PointF rP_major = cgmElement.points[1];
             angle_2 = Math.Round(angle_2, 0);
@@ -5324,10 +5592,17 @@ namespace cgm_decoder
                 double dd = angle_p1 - angle_p2;
                 angle = angle_p2;
                 angle_2 = dd;
+
+
+                //dist_GC = distance_180_xrs(cgmElement.points[0], G, out angle_p1, out angle_2, out slope_D2, out b_2);
+
+                //dist_EC = distance_180_xrs(cgmElement.points[0], E, out angle_p2, out angle_2, out slope_D2, out b_2);
+                //E = PointF.Subtract(E, new SizeF(cgmElement.points[0].X, cgmElement.points[0].Y));
+                //G = PointF.Subtract(G, new SizeF(cgmElement.points[0].X, cgmElement.points[0].Y));
+                //distance_180_xrs(G, E, out angle, out angle_2, out slope_D2, out b_2);
                 
             }
-            else
-            {
+            else{
                 if (rx < ry)
                 {
                     angle = rx;
@@ -5398,7 +5673,10 @@ namespace cgm_decoder
 
         public PointF finfPontOnElispe(float angle, float d1, float d2, float h, float k, float m, float x1, float y1, float xMax)
         {
-
+            if (d2 == 0)
+            {
+                return new PointF(h, k);
+            }
             float c_teta = (float)((Math.Cos(angle * Math.PI / 180)));
             float s_teta = (float)((Math.Sin(angle * Math.PI / 180)));
 
@@ -5776,16 +6054,24 @@ namespace cgm_decoder
                 {
                     if (alen < 0)
                     {
-                        alen = 360 + alen;
-                        if (angle_dir3 < 0)
+                        if (Math.Abs(angle_dir) < 180 & Math.Abs(angle_dir3) < 180  && (angle_dir3 < 0))
                         {
-                            path_len = alen < 180 ? '0' : '1';
-                            dir = angle_dir < 0 ? '1' : '0';
+                            path_len = '0';
+                            dir= '0';
                         }
                         else
                         {
-                            path_len = alen < 180 ? '0' : '1';
-                            dir = angle_dir < 0 ? '1' : '0';
+                            alen = 360 + alen;
+                            if (angle_dir3 < 0)
+                            {
+                                path_len = alen < 180 ? '0' : '1';
+                                dir = angle_dir < 0 ? '1' : '0';
+                            }
+                            else
+                            {
+                                path_len = alen < 180 ? '0' : '1';
+                                dir = angle_dir < 0 ? '1' : '0';
+                            }
                         }
                     }
                     else
@@ -5797,8 +6083,17 @@ namespace cgm_decoder
                         }
                         else
                         {
-                            path_len = alen < 180 ? '0' : '1';
-                            dir = angle_dir < 0 ? '0' : '1';
+                            if (angle_dir3 < 0)
+                            {
+                                path_len = alen < 180 ? '1' : '0';
+                                dir = angle_dir3 < 0 ? '0' : '1';
+                            }
+                            else
+                            {
+                                path_len = alen < 180 ? '0' : '1';
+                                dir = angle_dir < 0 ? '0' : '1';
+                            }
+                            
                         }
 
                     }
@@ -5818,15 +6113,39 @@ namespace cgm_decoder
             {
                 if (alen < 0)
                 {
-                    alen = 360 + alen;
-                    path_len = alen < 180 ? '1' : '0';
 
-                    dir = angle_dir < 0 ? '0' : '1';
+                    if (angle_dir3 > 0)
+                    {
+                        alen = 360 + alen;
+                        path_len = angle_dir3 < 180 ? '1' : '0';
+                        dir = angle_dir <= 180 ? '1' : '0';
+                    }
+                    else
+                    {
+                        alen = 360 + alen;
+                        path_len = alen < 180 ? '1' : '0';
+                        dir = angle_dir < 0 ? '0' : '1';
+                    }
                 }
                 else
                 {
-                    path_len = alen < 180 ? '1' : '0';
-                    dir = angle_dir < 0 ? '1' : '0';
+                    
+                    if (angle_dir3 > 0)
+                    {
+                        path_len = angle_dir3 < 180 ? '0' : '1';
+                        dir = angle_dir <= 180 ? '1' : '0';
+                    }
+                    else if (angle_dir3 < -180)
+                    {
+                        path_len = alen <= 180 ? '0' : '1';
+                        dir = angle_dir < 0 ? '1' : '0';
+                    }
+                    else
+                    {
+                        path_len = alen <= 180 ? '1' : '0';
+                        dir = angle_dir < 0 ? '1' : '0';
+                    }
+                    
 
                 }
             }
