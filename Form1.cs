@@ -55,8 +55,8 @@ namespace cgm_decoder
         public int vdc_idx = 0;
         public bool paramLen_rollover = false;
         #region debug enable console write line of decoded metafile name
-        string filename = "ellarc07"; //elarcc03
-        bool debug = false;
+        string filename = "bitonal02"; //elarcc03
+        bool debug = true;
         bool altSet = true; 
         #endregion
         public Form1()
@@ -108,17 +108,17 @@ namespace cgm_decoder
 
 
             #region JCGM CGM used for testing and tunning
-            //java.io.File cgmFile = new java.io.File(cgmfilename_in);
-            //java.io.DataInputStream input = new java.io.DataInputStream(new java.io.FileInputStream(cgmFile));
-            //net.sf.jcgm.core.CGM cgm = new CGM();
-            //cgm.read(input);
-            //List<Command> commands = cgm.getCommands().toArray().Cast<Command>().ToList();
-            //StreamWriter sw = new StreamWriter(cgmfilename_out, false);
-            //foreach (Command cmd in commands)
-            //{
-            //    sw.WriteLine(cmd.toString());
-            //}
-            //sw.Close();
+            java.io.File cgmFile = new java.io.File(cgmfilename_in);
+            java.io.DataInputStream input = new java.io.DataInputStream(new java.io.FileInputStream(cgmFile));
+            net.sf.jcgm.core.CGM cgm = new CGM();
+            cgm.read(input);
+            List<Command> commands = cgm.getCommands().toArray().Cast<Command>().ToList();
+            StreamWriter sw = new StreamWriter(cgmfilename_out, false);
+            foreach (Command cmd in commands)
+            {
+                sw.WriteLine(cmd.toString());
+            }
+            sw.Close();
             #endregion
 
             BinaryReader br = new BinaryReader(new FileStream(cgmfilename_in, FileMode.Open, FileAccess.Read));
@@ -466,8 +466,8 @@ namespace cgm_decoder
 
                     path.Attributes.Append(cgm_svg.CreateAttribute("y")).Value = (cgmElement.page_height - cgmElement.beginTilePoint.Y).ToString();
 
-                    path.Attributes.Append(cgm_svg.CreateAttribute("width")).Value = (cgmElement.rasterImage.Width * 1 ).ToString();
-                    path.Attributes.Append(cgm_svg.CreateAttribute("height")).Value = (cgmElement.rasterImage.Height * 1).ToString();
+                    path.Attributes.Append(cgm_svg.CreateAttribute("width")).Value = (cgmElement.rasterImage.Width * cgmElement.imageScale_x).ToString();
+                    path.Attributes.Append(cgm_svg.CreateAttribute("height")).Value = (cgmElement.rasterImage.Height * cgmElement.imageScale_y).ToString();
 
                     path.Attributes.Append(cgm_svg.CreateAttribute("xlink", "href", "http://www.w3.org/1999/xlink")).Value = string.Format("data:image/bmp;base64,{0}", cgmElement.raster2base64());
 
@@ -594,14 +594,14 @@ namespace cgm_decoder
                                 }
                                 else
                                 {
-                                    polyset.Append(String.Format(" {0} {1} ", pt.X, pt.Y));
+                                    polyset.Append(String.Format(" {0} {1} M ", pt.X, pt.Y));
                                 }
 
                                 break;
                             case "visible":
                                 if (pt_idx == 0)
                                 {
-                                    polyset.Append(String.Format(" M {0} {1} ", pt.X, pt.Y));
+                                    polyset.Append(String.Format("M {0} {1} ", pt.X, pt.Y));
                                     pontBackList = new List<PointF>();
                                 }
                                 else
@@ -613,12 +613,12 @@ namespace cgm_decoder
                                 if (pt_idx == 0)
                                 {
                                     pontBackList = new List<PointF>();
-                                    polyset.Append(String.Format(" M {0} {1} Z M ", pt.X, pt.Y));     
+                                    polyset.Append(String.Format(" M {0} {1} ", pt.X, pt.Y));
                                 }
                                 else
                                 {
-                                    closePnt = pontBackList.First();                                    
-                                    polyset.Append(String.Format(" {0} {1} M", pt.X, pt.Y, closePnt.X, closePnt.Y));                                    
+                                    closePnt = pontBackList.First();
+                                    polyset.Append(String.Format(" {0} {1} ", pt.X, pt.Y, closePnt.X, closePnt.Y));
                                     pontBackList = new List<PointF>();
                                 }
 
@@ -627,16 +627,16 @@ namespace cgm_decoder
                                 if (pt_idx == 0)
                                 {
 
-                                    polyset.Append(String.Format("M {0} {1} Z M ", pt.X, pt.Y));
-                                    pontBackList = new List<PointF>();                                    
+                                    polyset.Append(String.Format("M {0} {1} Z ", pt.X, pt.Y));
+                                    pontBackList = new List<PointF>();
                                 }
                                 else
                                 {
                                     closePnt = pontBackList.First();
-                                    polyset.Append(String.Format(" {0} {1} Z M ", pt.X, pt.Y, closePnt.X, closePnt.Y));
+                                    polyset.Append(String.Format(" {0} {1} Z ", pt.X, pt.Y, closePnt.X, closePnt.Y));
                                     pontBackList = new List<PointF>();
-                                    
-                                                                 
+
+
                                 }
                                 break;
                         }
@@ -1510,6 +1510,8 @@ namespace cgm_decoder
             public Bitmap rasterImage;
             public float imageRotation;
             public float imageScale;
+            public float imageScale_x;
+            public float imageScale_y;
             public float imageScale_delta_y;
             public float imageScale_delta_x;
             public int vdc_idx;
@@ -1642,7 +1644,7 @@ namespace cgm_decoder
             public Cgm_Element()
             {
 
-
+                imageScale_x = imageScale_y = 1;
                 palette = new List<Color>();
                 palette.Add(Color.FromArgb(255, 0, 0, 0));
                 palette.Add(Color.FromArgb(255, 128, 0, 0));
@@ -2756,43 +2758,33 @@ namespace cgm_decoder
                     #region Create Bitmap
                     int w = beginTileArray.nCellsPerTileInPathDirection;
                     int h = beginTileArray.nCellsPerTileInLineDirection;
-
-                    Cgm_Elements.Last().rasterImage = new Bitmap((int)w, (int)h);
+                    Cgm_Elements.Last().imageScale_x = 1 / beginTileArray.cellSizeInPathDirection;
+                    Cgm_Elements.Last().imageScale_y = 1 / beginTileArray.cellSizeInLineDirection;
+                    
 
                     int x, y;
                     x = y = 0;
 
                     int remainingBytes = paramLen - bytesRead;
-                    byte[] compressedData = new byte[remainingBytes];
-
+                    byte[] compressedData = new byte[remainingBytes];                    
                     bytesRead = br.Read(compressedData, 0, compressedData.Length);
                     y = y + bytesRead;
 
+                    int len = paramLen;
 
-                    buffer = new byte[2];
-                    bytesRead = br.Read(buffer, 0, buffer.Length);
-                    int len = (int)Cgm_Elements.Last().make16(buffer);
-
-                    while (len >= 32767)
+                    while (len >= 20000)
                     {
-                        len = len & 0x7fff;
                         int idx = compressedData.Length;
+                        buffer = new byte[2];
+                        bytesRead = br.Read(buffer, 0, buffer.Length);
+                        len = (int)Cgm_Elements.Last().make16(buffer) & 0x7fff;
                         Array.Resize(ref compressedData, compressedData.Length + (int)len);
                         bytesRead = br.Read(compressedData, idx, len);
                         y = y + bytesRead;
-                        buffer = new byte[2];
-                        bytesRead = br.Read(buffer, 0, buffer.Length);
-                        len = (int)Cgm_Elements.Last().make16(buffer);
 
-                        if (len < 32767)
-                        {
-                            idx = compressedData.Length;
 
-                            Array.Resize(ref compressedData, compressedData.Length + (int)len);
-                            bytesRead = br.Read(compressedData, idx, len);
-                            y = y + bytesRead;
-                        }
                     }
+                    
                     #endregion
 
                     len = compressedData.Length;
@@ -2818,6 +2810,7 @@ namespace cgm_decoder
 
                     MemoryStream ms = new MemoryStream();
                     TiffStream ts = new TiffStream();
+                    //using (Tiff output = Tiff.Open(filename+".tif", "w"))
                     using (Tiff output = Tiff.ClientOpen("in-memory", "w", ms, ts))
                     {
 
@@ -2839,15 +2832,16 @@ namespace cgm_decoder
                         
 
                         output.CheckpointDirectory();
-                        long streamSize = output.GetStream().Size(output.Clientdata());
-                                                
+                        long streamSize = output.GetStream().Size(output.Clientdata());                                                
                         ms.Position = 0;
-
                         Cgm_Elements.Last().rasterImage = new Bitmap(ms);
                         Cgm_Elements.Last().rasterImage.MakeTransparent(Color.White);
-                        
                         output.Close();
                         ms.Close();
+                        
+                        //Cgm_Elements.Last().rasterImage = new Bitmap(filename + ".tif");
+                        //Cgm_Elements.Last().rasterImage.MakeTransparent(Color.White);
+
                     }
                     #endregion
                 } 
