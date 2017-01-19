@@ -55,7 +55,7 @@ namespace cgm_decoder
         public int vdc_idx = 0;
         public bool paramLen_rollover = false;
         #region debug enable console write line of decoded metafile name
-        string filename = "segs"; //elarcc03
+        string filename = "ngps6"; //elarcc03
         bool debug = true;
         bool altSet = true; 
         #endregion
@@ -1044,12 +1044,38 @@ namespace cgm_decoder
                     p_end = PointF.Add(cgmElement.points[0], new SizeF(cgmElement.points[4].X, cgmElement.points[4].Y));
 
                     distance_180(cgmElement.points[0], p_start, out angle_P1, out slope_p, out bint_p);
+                    PointF diff = PointF.Subtract(cgmElement.points[0], new SizeF(p_start.X, p_start.Y));
+                    if (rx == ry && rx == 0)
+                    {
+                        p_start = new PointF(cgmElement.points[0].X, cgmElement.points[0].Y);
+                    }
+                    else if (diff.X == 0 && diff.Y == 0)
+                    {
+                        p_start = new PointF(cgmElement.points[0].X, cgmElement.points[0].Y);
+                    }
+                    else
+                    {
+                        p_start = finfPontOnElispe((float)(angle), (float)rx, (float)ry, cgmElement.points[0].X, cgmElement.points[0].Y, slope_p, p_start.X, p_start.Y, float.IsInfinity(slope_p) ? p_start.Y : p_start.X);
+                    }
                     
-                    p_start = finfPontOnElispe((float)(angle), (float)rx, (float)ry, cgmElement.points[0].X, cgmElement.points[0].Y, slope_p, p_start.X, p_start.Y, float.IsInfinity(slope_p) ? p_start.Y : p_start.X);
 
 
                     distance_180(cgmElement.points[0], p_end, out angle_P2, out slope_p, out bint_p);
-                    p_end = finfPontOnElispe((float)((angle)), (float)rx, (float)ry, cgmElement.points[0].X, cgmElement.points[0].Y, slope_p, p_end.X, p_end.Y, float.IsInfinity(slope_p) ? p_end.Y : p_end.X);
+                    diff = PointF.Subtract(cgmElement.points[0], new SizeF(p_end.X, p_end.Y));
+                    if (rx == ry && rx == 0)
+                    {
+                        p_end = new PointF(cgmElement.points[0].X, cgmElement.points[0].Y);
+                    }
+                    else if (diff.X == 0 && diff.Y == 0)
+                    {
+                        p_end = new PointF(cgmElement.points[0].X, cgmElement.points[0].Y);
+                    }
+                    else
+                    {
+                        p_end = finfPontOnElispe((float)((angle)), (float)rx, (float)ry, cgmElement.points[0].X, cgmElement.points[0].Y, slope_p, p_end.X, p_end.Y, float.IsInfinity(slope_p) ? p_end.Y : p_end.X);
+                    }
+                    
+                    
 
 
                     PointF pA1 = PointF.Subtract(p_start, new SizeF(cgmElement.points[0].X, cgmElement.points[0].Y));
@@ -2200,7 +2226,117 @@ namespace cgm_decoder
 
                 return elemColor;
             }
+            public Color getColor(int color_precision, BinaryReader br)
+            {
+                Color elemColor = new Color();
+                int bytesRead = 0;
+                byte[] buffer;
+                int colorBytes = color_precision / 8;
+                if (colorBytes == 4)
+                {
+                    buffer = new byte[colorBytes];
+                    bytesRead += br.Read(buffer, 0, buffer.Length);
+                    elemColor = Color.FromArgb(buffer[0], (int)buffer[1], (int)buffer[2], (int)buffer[3]);
 
+                }
+                else if (colorBytes == 3)
+                {
+                    buffer = new byte[colorBytes];
+                    bytesRead += br.Read(buffer, 0, buffer.Length);
+                    elemColor = Color.FromArgb(255, (int)buffer[0], (int)buffer[1], (int)buffer[2]);
+
+                }
+                else if (colorBytes == 1)
+                {
+                    buffer = new byte[colorBytes];
+                    bytesRead += br.Read(buffer, 0, buffer.Length);
+                    int cval = buffer[0];
+                    string binStr = Convert.ToString(cval, 2).PadLeft(8, '0');
+                    binStr = binStr.PadLeft(8, '0');
+                    buffer = new byte[4];
+                    if (colourSelectionMode == "indexed colour mode")
+                    {
+                        buffer = new byte[4];
+                        buffer[0] = 
+                        buffer[1] =
+                        buffer[2] = (byte)(cval * 255 / maximum_colour_index);
+                    }
+                    else
+                    {
+                        buffer = new byte[4];
+                        for (int j = 0; j < 4; j++)
+                        {
+                            string c = binStr.ToCharArray()[j * 2].ToString() + binStr.ToCharArray()[(j * 2) + 1].ToString();
+                            buffer[j] = (byte)(Convert.ToUInt16(c, 10) );
+                        }
+                        
+                    }
+                    elemColor = Color.FromArgb(255, (int)buffer[0], (int)buffer[1], (int)buffer[2]);
+
+                }
+                else if (color_precision == 1)
+                {
+                    buffer = new byte[1];
+                    bytesRead += br.Read(buffer, 0, buffer.Length);
+                    int cval = (int)bytes_getValue_int(buffer, 8);
+                    string binStr = Convert.ToString(cval, 2).PadLeft(8, '0');
+                    binStr = binStr.PadLeft(8, '0');
+                    foreach (char c in binStr.ToCharArray())
+                    {
+                        elemColor = c == '0' ? Color.Black : Color.White;                        
+                    }
+                }
+                else if (color_precision == 2)
+                {
+                    buffer = new byte[1];
+                    bytesRead += br.Read(buffer, 0, buffer.Length);
+                    int cval = (int)bytes_getValue_int(buffer, 8);
+                    string binStr = Convert.ToString(cval, 2).PadLeft(8, '0');
+                    for (int j = 0; j < 4; j++)
+                    {
+                        string c = binStr.ToCharArray()[j * 2].ToString() + binStr.ToCharArray()[(j * 2) + 1].ToString();
+                        int intensity = (byte)Convert.ToUInt16(c, 2);
+                        intensity = intensity * 255 / 7;
+                        elemColor = Color.FromArgb(255, intensity, intensity, intensity);
+
+                    }
+
+                }
+                else if (color_precision == 4)
+                {
+                    buffer = new byte[1];
+                    bytesRead += br.Read(buffer, 0, buffer.Length);
+                    int cval = (int)bytes_getValue_int(buffer, 8);
+                    string binStr = Convert.ToString(cval, 2).PadLeft(8, '0');
+
+
+
+                    for (int j = 0; j < 2; j++)
+                    {
+                        string c =
+                            binStr.ToCharArray()[(j * 4) + 0].ToString() +
+                            binStr.ToCharArray()[(j * 4) + 1].ToString() +
+                            binStr.ToCharArray()[(j * 4) + 2].ToString() +
+                            binStr.ToCharArray()[(j * 4) + 3].ToString();
+                        int intensity = (byte)Convert.ToUInt16(c, 2);
+                        elemColor = colorTable[intensity];
+
+                    }
+                }
+                else if (color_precision == 0)
+                {
+                    buffer = new byte[colour_idx_precision / 8];
+                    int idx = (int)bytes_getValue_int(buffer, (int)color_precision);
+                    bytesRead += br.Read(buffer, 0, buffer.Length);
+                    elemColor = new Color();
+                    if (idx < colorTable.Count)
+                    {
+                        elemColor = colorTable[idx];
+                    }
+
+                }
+                return elemColor;
+            }
             public bool isFilledArea()
             {
                 System.Collections.Hashtable fillarea = new System.Collections.Hashtable();
@@ -2433,6 +2569,8 @@ namespace cgm_decoder
                         }
                         else if (colorBytes == 3) 
                         {
+                            buffer = new byte[colorBytes];
+                            bytesRead += br.Read(buffer, 0, buffer.Length);
                              elemColor = Color.FromArgb(255, (int)buffer[0], (int)buffer[1], (int)buffer[2]);
                              pixels.Add(elemColor);
                         }
@@ -2446,7 +2584,7 @@ namespace cgm_decoder
                             buffer = new byte[4];
                             for (int j = 0; j < 4; j++)
                             {
-                                string c = binStr.ToCharArray()[i * 2].ToString() + binStr.ToCharArray()[(i * 2) + 1].ToString();
+                                string c = binStr.ToCharArray()[j * 2].ToString() + binStr.ToCharArray()[(j * 2) + 1].ToString();
                                  buffer[j] = (byte)Convert.ToUInt16(c, 10);
                             }
                             elemColor = Color.FromArgb(255, (int)buffer[0], (int)buffer[1], (int)buffer[2]);
@@ -2869,20 +3007,19 @@ namespace cgm_decoder
                 buffer = new byte[Cgm_Elements.Last().integer_precision / 8];
                 bytesRead += br.Read(buffer, 0, buffer.Length);
                 int precision = (int)Cgm_Elements.Last().bytes_getValue_uint(buffer, Cgm_Elements.Last().integer_precision);
-
-                bool directColor = precision == 1;
-                precision = Cgm_Elements.Last().colour_precision / 16;
+                precision = precision == 0 ? Cgm_Elements.Last().colour_idx_precision : precision;
+                bool directColor = Cgm_Elements.Last().colourSelectionMode == "indexed colour mode";
+                
                 bytesRead = paramLen - bytesRead;
 
-                int pixels = bytesRead / precision;
+                int pixels = bytesRead / (precision/8);
 
-                buffer = new byte[bytesRead];
-                buffer = new byte[precision];
+                
                 List<Color> pixelList = new List<Color>();
                 while (pixels > 0)
-                {
-                    br.Read(buffer, 0, buffer.Length);
-                    pixelList.Add(Cgm_Elements.Last().extractColor(buffer, directColor));
+                {                    
+                    Color c = Cgm_Elements.Last().getColor(precision, br);
+                    pixelList.Add(c);
                     pixels -= 1;
                 }
 
@@ -3419,7 +3556,7 @@ namespace cgm_decoder
             {
                 #region MyRegion
                 int words_cnt = 5;
-                int sigDigits = 1;
+                int sigDigits = 0;
                 int p = Cgm_Elements.Last().getPrecision();
                 int buf_len = p / 8;
 
@@ -5085,7 +5222,7 @@ namespace cgm_decoder
                 #region MyRegion
                 buffer = new byte[paramLen];
                 br.Read(buffer, 0, buffer.Length);
-                Cgm_Elements.Last().maximum_colour_index = buffer[0];
+                
                 #endregion
             }
             else if (elemName == "MAXIMUM COLOUR INDEX")
@@ -5093,7 +5230,7 @@ namespace cgm_decoder
                 #region MyRegion
                 buffer = new byte[paramLen];
                 br.Read(buffer, 0, buffer.Length);
-                Cgm_Elements.Last().maximum_colour_index = buffer[0];
+                Cgm_Elements.Last().maximum_colour_index = (int)Math.Max(1, (int)buffer[0]);
                 #endregion
             }
             else if (elemName == "CHARACTER SET LIST")
@@ -5277,7 +5414,7 @@ namespace cgm_decoder
                 elem_Class = elemclass.ToString(),
                 elem_Id = elemId.ToString(),
                 elem_Name = elemName,
-
+                maximum_colour_index = lastElem.maximum_colour_index,
                 lineJoin = lastElem.lineJoin,
                 lineCap = lastElem.lineCap,
                 lineTypeContinue = lastElem.lineTypeContinue,
@@ -5587,7 +5724,7 @@ namespace cgm_decoder
             PointF rP_minor = cgmElement.points[2];
             PointF rP_major = cgmElement.points[1];
             angle_2 = Math.Round(angle_2, 0);
-            if ( (int)(Math.Cos(Math.Abs(angle_2 * Math.PI /180)) * 100) != 0 )
+            if ((int)(Math.Cos(Math.Abs(angle_2 * Math.PI / 180)) * 100) != 0 && (int)(Math.Cos(Math.Abs(angle_2 * Math.PI / 180)) * 100) != 100)  
             {
                 if (rx > ry)
                 {
