@@ -55,7 +55,7 @@ namespace cgm_decoder
         public int vdc_idx = 0;
         public bool paramLen_rollover = false;
         #region debug enable console write line of decoded metafile name
-        string filename = "bitonal02"; //elarcc03
+        string filename = "segs"; //elarcc03
         bool debug = true;
         bool altSet = true; 
         #endregion
@@ -1473,11 +1473,7 @@ namespace cgm_decoder
                 }
                 cgm_idx_abs++;
             }
-            if (pic_idx == 0)
-            {
-                cgm_svg.Save(@"C:\Users\795627\Desktop\cmg_svg.svg");
-            }
-            else if( pic_idx == lstSheet)
+            if( pic_idx == lstSheet)
             {
                 cgm_svg.Save(String.Format(@"C:\Users\795627\Desktop\cmg_svg_{0}_{1}.svg", vdcIdx.ToString(), pic_idx.ToString()));
             }
@@ -1589,6 +1585,8 @@ namespace cgm_decoder
             public Color fillColor;
             public Color edgeColor;
             public Color characterColor;
+            public bool lineWidthSet;
+            public bool edgeWidthSet;
             public float strokeWidth;
             public float edgeWidth;
             public string edgeType;
@@ -1663,8 +1661,11 @@ namespace cgm_decoder
                 palette.Add(Color.FromArgb(255, 128, 128, 0));
                 palette.Add(Color.FromArgb(255, 255, 255, 0));
                 palette.Add(Color.FromArgb(255, 255, 255, 255));
-                
-                
+
+
+                true_height = page_height =
+                true_width =  page_width = 32767f;
+
                 imageScale_delta_y = 0;
                 imageScale_delta_x = 0;
                 imageRotation = 0;
@@ -1681,9 +1682,9 @@ namespace cgm_decoder
                 vdcType = "integer";
                 realType = "floating";
                 vdc_realType = "floating";
-                lineSizeMode = "absolute";
-                edgeSizeMode = "absolute";
-                markerSizeMode = "absolute";
+                lineSizeMode = "scaled";
+                edgeSizeMode = "scaled";
+                markerSizeMode = "scaled";
                 isFig = false;
                 colorModel = "RGB";
                 integer_precision = 16;
@@ -1705,16 +1706,17 @@ namespace cgm_decoder
                 polygonSetFlags = new List<string>();
 
                 characterColor = fillColor = strokeColor = edgeColor = Color.FromArgb(255, 0, 0, 0);
-
+                lineWidthSet = edgeWidthSet = false;
                 characterHeight = 16;
-                edgeWidth = 10f;
-                strokeWidth = 10f;
+                edgeWidth = strokeWidth = 1f;
                 lineCap = "round";
                 lineJoin = "round";
-                mitreLimit = 0;
-                edgeVisibility = true;
+                mitreLimit = 1f;
+                edgeVisibility = false;
                 fill_style = "hollow";
-
+                lineType = "1";
+                vdc_idx = 0;
+                picture_idx = 0;
 
             }
             public void resetColors_fromColorTable()
@@ -3790,19 +3792,35 @@ namespace cgm_decoder
                     Cgm_Elements.Last().true_height = Cgm_Elements.Last().page_height;
                     Cgm_Elements.Last().true_width = Cgm_Elements.Last().page_width;
                     Cgm_Elements.Last().vdc_idx = vdc_idx++;
+                    picture_idx = 0;
+                    Cgm_Elements.Last().picture_idx = picture_idx;
                     words_cnt = words_cnt - 2;
+
+                    if (Cgm_Elements.Last().lineSizeMode == "absolute")
+                    {
+                        //if (Cgm_Elements.Last().lineWidthSet == false)
+                        {
+                            Cgm_Elements.Last().strokeWidth = Math.Max(Cgm_Elements.Last().page_height, Cgm_Elements.Last().page_width) / 1000;
+
+                        }
+                        //if (Cgm_Elements.Last().edgeWidthSet == false)
+                        {
+                            Cgm_Elements.Last().edgeWidth = Math.Max(Cgm_Elements.Last().page_height, Cgm_Elements.Last().page_width) / 1000;
+                        }
+
+                    }
                 }
                 #endregion
             }
             else if (elemName == "METAFILE DEFAULTS REPLACEMENT")
             {
                 #region MyRegion
-                int words_cnt = paramLen / 2;
+                int words_cnt = paramLen;
                 while (words_cnt > 0)
                 {
-                    getNextMetaElement(ref br, ref buffer, out bytesread, ref paramLen, out elemclass, out elemId, out elemName, Cgm_Elements);
-                    words_cnt -= bytesread;
+                    getNextMetaElement(ref br, ref buffer, out bytesread, ref paramLen, out elemclass, out elemId, out elemName, Cgm_Elements);                    
                     parseMetaElement(ref br, ref buffer, ref bytesread, ref paramLen, ref elemclass, ref elemId, ref elemName, ref Cgm_Elements, false);
+                    words_cnt -= bytesread;
                 }
                 #endregion
             }
@@ -4255,6 +4273,7 @@ namespace cgm_decoder
                     Cgm_Elements.Last().lineEdgeDefs.dashseq.Add((int)Cgm_Elements.Last().bytes_getValue_int(buffer, p));
                     dash_cnt -= 1;
                 }
+                Cgm_Elements.Last().lineEdgeDefs.dashseq.Reverse();
                 lineEdgeTypeLookUp.Add(Cgm_Elements.Last().lineEdgeDefs);
                 #endregion
             }
@@ -4294,6 +4313,21 @@ namespace cgm_decoder
                         break;
                 }
                 Cgm_Elements.Last().lineSizeMode = str;
+                if (Cgm_Elements.Last().lineWidthSet == false)
+                {
+                    if (str == "absolute")
+                    {
+                        Cgm_Elements.Last().strokeWidth = Math.Max(Cgm_Elements.Last().page_height, Cgm_Elements.Last().page_width) / 1000;
+                    }
+                    else if (str == "mm")
+                    {
+                        Cgm_Elements.Last().strokeWidth = 0.35f;
+                    }
+                    else if (str == "fractional")
+                    {
+                        Cgm_Elements.Last().strokeWidth = 0.001f;
+                    }
+                }                
                 #endregion
             }
             else if (elemName == "MARKER SIZE SPECIFICATION MODE")
@@ -4342,7 +4376,21 @@ namespace cgm_decoder
                         break;
                 }
                 Cgm_Elements.Last().edgeSizeMode = str;
-
+                if (Cgm_Elements.Last().edgeWidthSet == false)
+                {
+                    if (str == "absolute")
+                    {
+                        Cgm_Elements.Last().edgeWidth = Math.Max(Cgm_Elements.Last().page_height, Cgm_Elements.Last().page_width) / 1000;
+                    }
+                    else if (str == "mm")
+                    {
+                        Cgm_Elements.Last().edgeWidth = 0.35f;
+                    }
+                    else if (str == "fractional")
+                    {
+                        Cgm_Elements.Last().edgeWidth = 0.001f;
+                    }
+                }                
                 #endregion
             }
             else if (elemName == "LINE JOIN")
@@ -4704,14 +4752,19 @@ namespace cgm_decoder
                 br.Read(buffer, 0, buffer.Length);
                 float f = Cgm_Elements.Last().bytes_getValue_edge(buffer);
                 Cgm_Elements.Last().strokeWidth = f;
-                if(Cgm_Elements.Last().lineSizeMode == "scaled")
-                {
-                    Cgm_Elements.Last().strokeWidth = 10 * f;
-                }
-                else if (Cgm_Elements.Last().lineSizeMode == "fractional")
-                {
-                    Cgm_Elements.Last().strokeWidth = Cgm_Elements.Last().page_width * f;
-                }
+                //if (Cgm_Elements.Last().lineSizeMode == "absolute")
+                //{
+                //    Cgm_Elements.Last().strokeWidth =  f / 1000;
+                //}
+                //if (Cgm_Elements.Last().lineSizeMode == "scaled")
+                //{
+                //    Cgm_Elements.Last().strokeWidth = 10 * f;
+                //}
+                //else if (Cgm_Elements.Last().lineSizeMode == "fractional")
+                //{
+                //    Cgm_Elements.Last().strokeWidth = Cgm_Elements.Last().page_width * f;
+                //}
+                Cgm_Elements.Last().lineWidthSet = true;
                 #endregion
             }
 
@@ -4723,14 +4776,15 @@ namespace cgm_decoder
                 br.Read(buffer, 0, buffer.Length);
                 float f = Cgm_Elements.Last().bytes_getValue_edge(buffer);
                 Cgm_Elements.Last().edgeWidth = f;
-                if (Cgm_Elements.Last().edgeSizeMode == "scaled")
-                {
-                    Cgm_Elements.Last().edgeWidth = 10 * f;
-                }
-                else if (Cgm_Elements.Last().lineSizeMode == "fractional")
-                {
-                    Cgm_Elements.Last().edgeWidth = Cgm_Elements.Last().page_width * f;
-                }
+                //if (Cgm_Elements.Last().edgeSizeMode == "scaled")
+                //{
+                //    Cgm_Elements.Last().edgeWidth = 10 * f;
+                //}
+                //else if (Cgm_Elements.Last().lineSizeMode == "fractional")
+                //{
+                //    Cgm_Elements.Last().edgeWidth = Cgm_Elements.Last().page_width * f;
+                //}
+                Cgm_Elements.Last().lineWidthSet = true;
                 #endregion
             }
             else if (elemName == "CHARACTER SPACING")
@@ -4835,6 +4889,29 @@ namespace cgm_decoder
             }
             else if (elemName == "BEGIN PICTURE")
             {
+             
+                #region MyRegion
+                if (paramLen > 0)
+                {
+                    if (paramLen > 1)
+                    {
+                        buffer = new byte[paramLen - 1];
+                        br.Read(buffer, 0, 1);
+                        br.Read(buffer, 0, buffer.Length);
+                        buffer = buffer.Select(fd => fd <= 32 ? (byte)' ' : fd).ToArray();
+                        str = System.Text.Encoding.Default.GetString(buffer);
+                    }
+                    else
+                    {
+                        buffer = new byte[paramLen];
+                        br.Read(buffer, 0, 1);
+                        str = "";
+                    }
+                }
+                #endregion
+            }
+            else if (elemName == "BEGIN PICTURE BODY")
+            {
                 Cgm_Elements.Last().picture_idx = picture_idx++;
                 #region MyRegion
                 if (paramLen > 0)
@@ -4863,7 +4940,7 @@ namespace cgm_decoder
                 br.Read(buffer, 0, buffer.Length);
                 buffer = buffer.Where(fd => fd >= 32).ToArray();
                 str = System.Text.Encoding.Default.GetString(buffer);
-                
+
                 #endregion
             }
             else if (elemName == "BEGIN FIGURE")
@@ -4907,6 +4984,13 @@ namespace cgm_decoder
                 buffer = new byte[paramLen];
                 br.Read(buffer, 0, buffer.Length);
                 Cgm_Elements.Last().vdcType = buffer[1] == 0 ? "integer" : "real";
+                if (buffer[1] == '1' && Cgm_Elements.Last().vdc_idx == 0)
+                {
+                    Cgm_Elements.Last().page_height =
+                    Cgm_Elements.Last().page_width =
+                    Cgm_Elements.Last().true_height =
+                    Cgm_Elements.Last().true_height = 1f;
+                }
                 #endregion
             }
 
@@ -5206,6 +5290,8 @@ namespace cgm_decoder
                 edgeWidth = lastElem.edgeWidth,
                 edgeType = lastElem.edgeType,
                 lineType = lastElem.lineType,
+                edgeWidthSet = lastElem.edgeWidthSet,
+                lineWidthSet = lastElem.lineWidthSet,
                 strokeWidth = lastElem.strokeWidth,
                 edgeVisibility = lastElem.edgeVisibility,
                 characterHeight = lastElem.characterHeight,
