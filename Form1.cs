@@ -55,8 +55,8 @@ namespace cgm_decoder
         public int vdc_idx = 0;
         public bool paramLen_rollover = false;
         #region debug enable console write line of decoded metafile name
-        string filename = "ngps6"; //elarcc03
-        bool debug = true;
+        string filename = "bigcgm04"; //elarcc03
+        bool debug = false;
         bool altSet = true; 
         #endregion
         public Form1()
@@ -594,7 +594,7 @@ namespace cgm_decoder
                                 }
                                 else
                                 {
-                                    polyset.Append(String.Format(" {0} {1} M ", pt.X, pt.Y));
+                                    polyset.Append(String.Format(" {0} {1} ", pt.X, pt.Y));
                                 }
 
                                 break;
@@ -620,8 +620,8 @@ namespace cgm_decoder
                                     closePnt = pontBackList.First();
                                     polyset.Append(String.Format(" {0} {1} ", pt.X, pt.Y, closePnt.X, closePnt.Y));
                                     pontBackList = new List<PointF>();
+                                    pt_idx = -1;
                                 }
-
                                 break;
                             case "close,visible":
                                 if (pt_idx == 0)
@@ -635,8 +635,7 @@ namespace cgm_decoder
                                     closePnt = pontBackList.First();
                                     polyset.Append(String.Format(" {0} {1} Z ", pt.X, pt.Y, closePnt.X, closePnt.Y));
                                     pontBackList = new List<PointF>();
-
-
+                                    pt_idx = -1;
                                 }
                                 break;
                         }
@@ -1026,7 +1025,7 @@ namespace cgm_decoder
                     ee.Attributes["ry"].Value = ry.ToString();
                     ee.Attributes.Append(cgm_svg.CreateAttribute("fill")).Value = "none";
                     ee.Attributes.Append(cgm_svg.CreateAttribute("stroke")).Value = "black";
-                    ee.Attributes.Append(cgm_svg.CreateAttribute("stroke-width")).Value = "2";
+                    ee.Attributes.Append(cgm_svg.CreateAttribute("stroke-width")).Value = "0.1";
                     //cgm_svg.DocumentElement.AppendChild(ee);
                     #endregion
                     ///////////////////////////////////////////////////////
@@ -1072,7 +1071,7 @@ namespace cgm_decoder
                     }
                     else
                     {
-                        p_end = finfPontOnElispe((float)((angle)), (float)rx, (float)ry, cgmElement.points[0].X, cgmElement.points[0].Y, slope_p, p_end.X, p_end.Y, float.IsInfinity(slope_p) ? p_end.Y : p_end.X);
+                        p_end = finfPontOnElispe((float)((angle)), (float)rx, (float)ry, cgmElement.points[0].X, cgmElement.points[0].Y, slope_p, p_end.X, p_end.Y, float.IsInfinity(slope_p) ? p_end.Y : p_end.X);                        
                     }
                     
                     
@@ -3496,7 +3495,7 @@ namespace cgm_decoder
             }
             else if (elemName == "ELLIPTICAL ARC")
             {
-                int sigDigits = 0;
+                int sigDigits = 3;
                 #region MyRegion
                 int vdc_cnt = 3;
                 int precision = Cgm_Elements.Last().getPrecision_vdc();
@@ -3556,7 +3555,7 @@ namespace cgm_decoder
             {
                 #region MyRegion
                 int words_cnt = 5;
-                int sigDigits = 0;
+                int sigDigits = 3;
                 int p = Cgm_Elements.Last().getPrecision();
                 int buf_len = p / 8;
 
@@ -5925,13 +5924,13 @@ namespace cgm_decoder
 
                 if (h > xMax)
                 {
-                    xr1 = h - 1;
+                    xr1 = h ;
                     xr0 = h - (d3 + 1);
                     xr0 = Math.Min(xMax, xr0) - 2;
                 }
                 else if (h < xMax)
                 {
-                    xr0 = h - 1;
+                    xr0 = h ;
                     xr1 = h + (d3 + 1);
                     xr1 = Math.Max(xMax, xr1);
                 }
@@ -5941,7 +5940,7 @@ namespace cgm_decoder
                 if (float.IsNegativeInfinity(m))
                 {
                     xr1 = k;
-                    xr0 = k - d3;
+                    xr0 = k - (2*d3);
                     
                 }
                 else
@@ -5979,7 +5978,7 @@ namespace cgm_decoder
             }
             float upperLimit = (xr1 - xr0 + 1) * 1;
             //range = Enumerable.Range((int)xr0-1, (int)(upperLimit)/0.01).Select(fd => (float)(fd + (1 / 1))).ToArray();
-            range = Enumerable.Range(0, (int)(upperLimit/0.10)).Select(fd => (float)(xr0 - 1) + ((float)fd / 10)).ToArray();
+            range = Enumerable.Range(0, (int)(upperLimit/0.010)).Select(fd => (float)(xr0 - 0) + ((float)fd / 100)).ToArray();
             
                 
             int i = 0;
@@ -6440,7 +6439,6 @@ namespace cgm_decoder
              
             }
         }
-    
-    
+        
     }
 }
