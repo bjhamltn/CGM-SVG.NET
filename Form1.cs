@@ -1,3 +1,15 @@
+/*
+ * Copyright (C) Benjamin Hamilton 2016 
+ * Program to covert computer graphic metafile (CGM) into scalable vector graphics (SVG)
+ */
+
+/* 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+*/
+
+
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
@@ -16,23 +28,50 @@ using MathNet.Numerics;
 using MathNet.Numerics.LinearAlgebra;
 using BitMiracle.LibTiff.Classic;
 using BitMiracle.LibTiff;
+using Color = System.Drawing.Color;
+using FontFamily = System.Drawing.FontFamily;
+
+
+
+
+#region JCGM: Used for testing and troble shooting and is not required by the converter.
+using net.sf.jcgm.core;
 using System.Drawing.Imaging;
 using System.Drawing.Text;
+using System.Windows.Media;
+using System.Runtime.InteropServices;
+using System.Windows.Media.Imaging;  
+#endregion
 
-namespace cgmSvg
+namespace cgm_decoder
 {
-    public class CgmDecoder
+
+
+
+    public partial class Form1 : System.Windows.Forms.Form
     {
+        
         public int picture_idx = 0;
         public int vdc_idx = 0;
         public bool paramLen_rollover = false;
-        public bool debug = false;
-        public string tempDir = "";
-        public CgmDecoder() { }
-
-        public List<XmlDocument> Covert2Svg(Stream cgmFile)
+        #region debug enable console write line of decoded metafile name
+        string filename = "fim02"; //plgset01
+        bool debug = false;
+        bool altSet = true; 
+        #endregion
+        public Form1()
         {
+            #region Sets the location of the file being converted and the location of the output file.
+            string cgmfilename_in = @"C:\Users\795627\Downloads\Reference Files\ata30-cgms\" + filename + ".cgm";
+            string cgmfilename_out = @"C:\Users\795627\Desktop\" + filename + ".txt";
+            if (altSet)
+            {
+                cgmfilename_in = @"C:\Users\795627\Desktop\CGM\" + filename + ".cgm";
+                cgmfilename_out = @"C:\Users\795627\Desktop\" + filename + ".txt";
+            }
+            #endregion
 
+            InitializeComponent();
 
             #region Default line types for SVG dash arrays
             lineEdgeTypeLookUp.Add(new LineEdgeType()
@@ -66,7 +105,23 @@ namespace cgmSvg
             });
             #endregion
 
-            BinaryReader br = new BinaryReader(cgmFile);
+
+
+            #region JCGM CGM used for testing and tunning
+            java.io.File cgmFile = new java.io.File(cgmfilename_in);
+            java.io.DataInputStream input = new java.io.DataInputStream(new java.io.FileInputStream(cgmFile));
+            net.sf.jcgm.core.CGM cgm = new CGM();
+            cgm.read(input);
+            List<Command> commands = cgm.getCommands().toArray().Cast<Command>().ToList();
+            StreamWriter sw = new StreamWriter(cgmfilename_out, false);
+            foreach (Command cmd in commands)
+            {
+                sw.WriteLine(cmd.toString());
+            }
+            sw.Close();
+            #endregion
+
+            BinaryReader br = new BinaryReader(new FileStream(cgmfilename_in, FileMode.Open, FileAccess.Read));
 
             picture_idx = 0;
             vdc_idx = 0;
@@ -82,6 +137,7 @@ namespace cgmSvg
 
             while (bytesread > 0)
             {
+                //if (elemName != "")
                 if (!string.IsNullOrEmpty(elemName))
                 {
                     parseMetaElement(ref br, ref buffer, ref bytesread, ref paramLen, ref elemclass, ref elemId, ref elemName, ref Cgm_Elements, true);
@@ -93,10 +149,10 @@ namespace cgmSvg
             }
             br.Close();
 
-            List<XmlDocument> sheets = CGM_t_SVG(Cgm_Elements);
-            return sheets;
+            CGM_t_SVG(Cgm_Elements);
         }
-        
+
+
         public XmlDocument createSVGTemplate(List<Cgm_Element> Cgm_Elements)
         {
             #region Width Height
@@ -167,6 +223,8 @@ namespace cgmSvg
                         PointF p_endin_alt = PointF.Subtract(p_endin, new SizeF(center.X, center.Y));
                         cgm.points.Add(cgm.points[1]);
                         cgm.points.Add(cgm.points[2]);
+                        cgm.points.Add(cgm.points[3]);
+                        cgm.points.Add(cgm.points[4]);
                         cgm.points = cgm.points.Select((fd, idx) => idx <= 2 ? new PointF(fd.X, dd.page_height - fd.Y - y_offset) : fd).ToList();
                         cgm.points[3] = p_start_alt;
                         cgm.points[4] = p_endin_alt;
@@ -209,7 +267,10 @@ namespace cgmSvg
 
                         PointF p_start_alt = PointF.Subtract(p_start, new SizeF(center.X, center.Y));
                         PointF p_endin_alt = PointF.Subtract(p_endin, new SizeF(center.X, center.Y));
-
+                        cgm.points.Add(cgm.points[1]);
+                        cgm.points.Add(cgm.points[2]);
+                        cgm.points.Add(cgm.points[3]);
+                        cgm.points.Add(cgm.points[4]);
                         cgm.points = cgm.points.Select((fd, idx) => idx <= 2 ? new PointF(dd.page_width - fd.X, fd.Y) : fd).ToList();
                         cgm.points[3] = p_start_alt;
                         cgm.points[4] = p_endin_alt;
@@ -224,31 +285,29 @@ namespace cgmSvg
             }
             return cgm_svg;
         }
-
-        public List<XmlDocument> CGM_t_SVG(List<Cgm_Element> Cgm_Elements)
+        
+        public void CGM_t_SVG(List<Cgm_Element> Cgm_Elements)
         {
             IEnumerable<IGrouping<int, Cgm_Element>> vdcExtents = Cgm_Elements.GroupBy(fd => fd.vdc_idx);
-            List<XmlDocument> sheets = new List<XmlDocument>();
+
             foreach (IGrouping<int, Cgm_Element> vdcExtentGroup in vdcExtents)
             {
                 List<Cgm_Element> ll = vdcExtentGroup.Cast<Cgm_Element>().ToList();
-                sheets.AddRange(createSVG(ll, vdcExtentGroup.Key));
+                createSVG(ll, vdcExtentGroup.Key);
             }
-            return sheets;
         }
-
-        public List<XmlDocument> createSVG(List<Cgm_Element> Cgm_Elements, int vdcIdx)
+        
+        public void createSVG(List<Cgm_Element> Cgm_Elements, int vdcIdx)
         {
 
             bool pathNew = true;
-            List<XmlDocument> sheets = new List<XmlDocument>();
+
             XmlDocument cgm_svg = createSVGTemplate(Cgm_Elements);
             XmlNode path = cgm_svg.CreateElement("path");
             Cgm_Element prevCgm = new Cgm_Element();
             int cgm_idx = 0;
             int cgm_idx_abs = 0;
             cgm_svg.DocumentElement.SetAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
-
             cgm_svg.DocumentElement.SetAttribute("xmlns:dc", "http://purl.org/dc/elements/1.1/");
             cgm_svg.DocumentElement.SetAttribute("xmlns:cc", "http://creativecommons.org/ns#");
             cgm_svg.DocumentElement.SetAttribute("xmlns:rdf", "http://www.w3.org/1999/02/22-rdf-syntax-ns#");
@@ -266,9 +325,8 @@ namespace cgmSvg
                 XmlDocument hatch = new XmlDocument();
 
                 byte[] data = (byte[])cgm_struct.ResourceManager.GetObject(hatch_id);
-                string dsd = System.Text.Encoding.Default.GetString(data);
 
-                hatch.LoadXml(dsd);
+                hatch.LoadXml(System.Text.Encoding.Default.GetString(data));
 
                 XmlNamespaceManager xml = new XmlNamespaceManager(hatch.NameTable);
                 xml.AddNamespace("space", "http://www.w3.org/2000/svg");
@@ -293,19 +351,25 @@ namespace cgmSvg
                 #endregion
             });
             int pic_idx = 0;
+            int lstSheet = Cgm_Elements.Last().picture_idx;
             string template = cgm_svg.OuterXml;
             cgm_svg.DocumentElement.SetAttribute("xmlns", "http://www.w3.org/2000/svg");
             foreach (Cgm_Element cgmElement in Cgm_Elements)
             {
+                if (cgmElement.elem_Name == ("END PICTURE"))
+                {
+                    Console.WriteLine("Start New Sheet");
+                }
                 pathNew = true;
                 bool close = cgmElement.isFig;
                 bool isFigure = cgmElement.isFig;
                 if (pic_idx != cgmElement.picture_idx)
-                {
-                    sheets.Add(cgm_svg);
+                {                    
+                    cgm_svg.Save(String.Format(@"C:\Users\795627\Desktop\cmg_svg_{0}_{1}.svg", vdcIdx.ToString(), pic_idx.ToString()));
                     cgm_svg = new XmlDocument();
-                    cgm_svg.LoadXml(template);
+                    cgm_svg.LoadXml(template);                    
                     cgm_svg.DocumentElement.SetAttribute("xmlns", "http://www.w3.org/2000/svg");
+                    cgm_idx = 0;
                 }
                 pic_idx = cgmElement.picture_idx;
                 #region SVG Elements
@@ -574,7 +638,7 @@ namespace cgmSvg
                                     polyset = new StringBuilder();
                                     polyset.Append(polyFrag);
                                     polyset.Append(String.Format(" {0} {1} M {2} {3} ", pt.X, pt.Y, closePnt.X, closePnt.Y));
-
+                                    
                                     nwPtIdx = -1;
                                     segmentSet = new List<LineSegment>();
                                     pontBackList = new List<PointF>();
@@ -636,7 +700,7 @@ namespace cgmSvg
                         nwPtIdx++;
                     }
 
-
+                    
                     path.Attributes["d"].Value += polyset.ToString();
                     cgm_svg.DocumentElement.AppendChild(path);
                     #endregion
@@ -921,7 +985,7 @@ namespace cgmSvg
                     }
                     cgm_svg.DocumentElement.AppendChild(path);
                     #endregion
-                }
+                }               
                 else if (cgmElement.elem_Name.StartsWith("ELLIPTICAL ARC"))
                 {
                     #region MyRegion
@@ -961,7 +1025,7 @@ namespace cgmSvg
                     path.Attributes["center"].Value = cgmElement.points[0].ToString();
 
 
-
+              
                     char dir = '0';
                     char path_len = '0';
                     string angle_s = "0";
@@ -972,7 +1036,7 @@ namespace cgmSvg
                     double ry = 0;
                     double rx = 0;
 
-
+                    
 
                     /////////////////////////////////////////////////
                     Cgm_Element ellispe = new Cgm_Element();
@@ -1007,7 +1071,7 @@ namespace cgmSvg
                     ee.Attributes.Append(cgm_svg.CreateAttribute("angle_s"));
                     ee.Attributes.Append(cgm_svg.CreateAttribute("angle_ends"));
                     ee.Attributes.Append(cgm_svg.CreateAttribute("angle_len"));
-
+                    
                     ee.Attributes["cx"].Value = cgmElement.points[0].X.ToString();
                     ee.Attributes["cy"].Value = cgmElement.points[0].Y.ToString();
                     ee.Attributes["transform"].Value = "rotate(" + angle.ToString() + " " + cx + " " + cy + ")";
@@ -1015,7 +1079,7 @@ namespace cgmSvg
                     ee.Attributes["ry"].Value = ry.ToString();
                     ee.Attributes.Append(cgm_svg.CreateAttribute("fill")).Value = "none";
                     ee.Attributes.Append(cgm_svg.CreateAttribute("stroke")).Value = "black";
-                    ee.Attributes.Append(cgm_svg.CreateAttribute("stroke-width")).Value = "2";
+                    ee.Attributes.Append(cgm_svg.CreateAttribute("stroke-width")).Value = "0.1";
                     //cgm_svg.DocumentElement.AppendChild(ee);
                     #endregion
                     ///////////////////////////////////////////////////////
@@ -1044,9 +1108,12 @@ namespace cgmSvg
                     }
                     else
                     {
+                        
                         p_start = finfPontOnElispe((float)(angle), (float)rx, (float)ry, cgmElement.points[0].X, cgmElement.points[0].Y, slope_p, p_start.X, p_start.Y, float.IsInfinity(slope_p) ? p_start.Y : p_start.X);
+                        
+                        
                     }
-
+                    
 
 
                     distance_180(cgmElement.points[0], p_end, out angle_P2, out slope_p, out bint_p);
@@ -1061,18 +1128,18 @@ namespace cgmSvg
                     }
                     else
                     {
-                        p_end = finfPontOnElispe((float)((angle)), (float)rx, (float)ry, cgmElement.points[0].X, cgmElement.points[0].Y, slope_p, p_end.X, p_end.Y, float.IsInfinity(slope_p) ? p_end.Y : p_end.X);
+                        p_end = finfPontOnElispe((float)((angle)), (float)rx, (float)ry, cgmElement.points[0].X, cgmElement.points[0].Y, slope_p, p_end.X, p_end.Y, float.IsInfinity(slope_p) ? p_end.Y : p_end.X);                                                
                     }
-
-
+                    
+                    
 
 
                     PointF pA1 = PointF.Subtract(p_start, new SizeF(cgmElement.points[0].X, cgmElement.points[0].Y));
 
                     PointF pA2 = PointF.Subtract(p_end, new SizeF(cgmElement.points[0].X, cgmElement.points[0].Y));
-
+                    
                     distance_180_xrs(pA2, pA1, out angle_P1, out angle_DIR, out slope_p, out bint_p);
-
+                    
                     //Console.WriteLine(angle_DIR + "  " + Math.Round(angle_dir, 0) + " " + angle_LEN);
 
 
@@ -1101,7 +1168,7 @@ namespace cgmSvg
                     }
                     cgmElement.points.Add(new PointF(p_end.X, p_end.Y));
 
-
+                    
                     string arcTO = string.Format(" M {0} {1} A {2} {3} {4} {5} {6} {7} {8} ", p_start.X, p_start.Y, rx, ry, angle_s, path_len, dir, p_end.X, p_end.Y);
                     path.Attributes["d"].Value += arcTO;
                     if (cgmElement.cir_arc_closure != null)
@@ -1115,7 +1182,7 @@ namespace cgmSvg
                             path.Attributes["d"].Value += string.Format("L {0} {1} {2} {3} Z ", cgmElement.points[0].X, cgmElement.points[0].Y, p_start.X, p_start.Y);
                         }
                     }
-
+                 
 
                     #endregion
                 }
@@ -1248,7 +1315,7 @@ namespace cgmSvg
                     path.Attributes.Append(cgm_svg.CreateAttribute("idx")).Value = cgm_idx.ToString();
                     path.Attributes["x"].Value = "0";
                     path.Attributes["y"].Value = "0";
-                    path.Attributes["transform"].Value += String.Format("translate({0} {1})", cgmElement.position.X, (cgmElement.position.Y + (cgmElement.characterHeight * 0.79)).ToString());
+                    path.Attributes["transform"].Value += String.Format("translate({0} {1})", cgmElement.position.X, (cgmElement.position.Y + (cgmElement.characterHeight *0.79 )).ToString());
                     foreach (string[] txtAppend in cgmElement.appendedText)
                     {
                         XmlNode tspan = cgm_svg.CreateElement("tspan");
@@ -1380,7 +1447,7 @@ namespace cgmSvg
                         }
                         else if (cgmElement.fill_style == "hollow")
                         {
-                            path.Attributes["style"].Value += string.Format("fill:none;");                            
+                            path.Attributes["style"].Value += string.Format("fill:none;");
                             path.Attributes["style"].Value += string.Format("stroke-width:{0};", Math.Max(1, cgmElement.edgeWidth));
                         }
                         else if (cgmElement.fill_style == "hatch")
@@ -1445,7 +1512,7 @@ namespace cgmSvg
                                 path.Attributes["style"].Value += string.Format("stroke:#{0};", cgmElement.edgeColor.Name.Substring(2));
                                 if (cgmElement.edgeVisibility)
                                 {
-                                    path.Attributes["style"].Value += string.Format("stroke-width:{0};", Math.Max(0, cgmElement.edgeWidth));
+                                    path.Attributes["style"].Value += string.Format("stroke-width:{0};", Math.Max(0.01, cgmElement.edgeWidth));
                                 }
                                 else
                                 {
@@ -1458,7 +1525,7 @@ namespace cgmSvg
                                 path.Attributes["style"].Value += string.Format("stroke:#{0};", cgmElement.strokeColor.Name.Substring(2));
                                 if (cgmElement.edgeVisibility)
                                 {
-                                    path.Attributes["style"].Value += string.Format("stroke-width:{0};", Math.Max(0, cgmElement.strokeWidth));
+                                    path.Attributes["style"].Value += string.Format("stroke-width:{0};", Math.Max(0.01, cgmElement.strokeWidth));
                                 }
                                 else
                                 {
@@ -1488,19 +1555,17 @@ namespace cgmSvg
                 }
                 cgm_idx_abs++;
             }
-            if (pic_idx == 0)
+            if( pic_idx == lstSheet)
             {
-                sheets.Add(cgm_svg);
+                cgm_svg.Save(String.Format(@"C:\Users\795627\Desktop\cmg_svg_{0}_{1}.svg", vdcIdx.ToString(), pic_idx.ToString()));
             }
-            return sheets;
         }
 
         /// <summary>
-        /// ////////////////////////////////////////////////////////////////////////////////////////////////////////
-        /// ////////////////////////////////////////////////////////////////////////////////////////////////////////
-        /// ////////////////////////////////////////////////////////////////////////////////////////////////////////
+        /// ////////////////////////////////////////////////////////////////////////////////////////////////////
+        /// ////////////////////////////////////////////////////////////////////////////////////////////////////
+        /// ////////////////////////////////////////////////////////////////////////////////////////////////////
         /// </summary>
-
 
         public class LineSegment
         {
@@ -1508,7 +1573,7 @@ namespace cgmSvg
             public PointF p2;
             public LineSegment() { }
         }
-
+        
         public class LineEdgeType
         {
             public int id;
@@ -1539,16 +1604,16 @@ namespace cgmSvg
             public int lineProgressionDirection;
             public int nTilesInPathDirection;
             public int nTilesInLineDirection;
-
+            
             public int nCellsPerTileInPathDirection;
             public int nCellsPerTileInLineDirection;
 
             public float cellSizeInPathDirection;
             public float cellSizeInLineDirection;
-
+           
             public int imageOffsetInPathDirection;
             public int imageOffsetInLineDirection;
-
+           
             public int nCellsInPathDirection;
             public int nCellsInLineDirection;
 
@@ -1642,12 +1707,12 @@ namespace cgmSvg
             public string lineCap;
             public string lineTypeContinue;
             public string dashCapIndicator;
-
+            
             public string edgeJoin;
             public string edgeCap;
             public string edgeTypeContinue;
             public string edgedashCapIndicator;
-
+            
             public string metafile_elements;
             public float mitreLimit;
             public string colourSelectionMode;
@@ -1686,7 +1751,7 @@ namespace cgmSvg
 
 
                 true_height = page_height =
-                true_width = page_width = 32767f;
+                true_width =  page_width = 32767f;
 
                 imageScale_delta_y = 0;
                 imageScale_delta_x = 0;
@@ -1717,7 +1782,7 @@ namespace cgmSvg
                 idx_precision = 16;
                 real_precision = 32;
                 vdc_integer_precision = 16;
-                isleftRight = true;
+                isleftRight = true;                
                 elem_Class = "";
                 elem_Id = "";
                 elem_Name = "";
@@ -1772,7 +1837,7 @@ namespace cgmSvg
 
             public int getPrecision_int()
             {
-                return vdc_integer_precision;
+                return  vdc_integer_precision;
             }
 
             public float bytes_getValue(byte[] bytes, int precision)
@@ -1824,7 +1889,7 @@ namespace cgmSvg
                                 byte[] fraction = new byte[2];
                                 Array.Copy(bytes, 2, fraction, 0, 2);
                                 Array.Resize(ref bytes, 2);
-                                dd = BitConverter.ToInt16(bytes.Reverse().ToArray(), 0) + (BitConverter.ToUInt16(fraction.Reverse().ToArray(), 0)) / Math.Pow(2, 16);
+                                dd = BitConverter.ToInt16(bytes.Reverse().ToArray(), 0) +(BitConverter.ToUInt16(fraction.Reverse().ToArray(), 0)) / Math.Pow(2, 16);
                             }
                             else
                             {
@@ -1916,7 +1981,7 @@ namespace cgmSvg
 
             public float bytes_getValue_real(byte[] bytes, int precision)
             {
-
+                
                 float result = 0;
                 precision = real_precision;
                 if (realType == "floating")
@@ -1988,7 +2053,7 @@ namespace cgmSvg
 
                     Array.Resize(ref bytes, 2);
                     double dd = (BitConverter.ToUInt16(bytes.Reverse().ToArray(), 0));
-                    result = (float)dd;
+                    result =  (float)dd;                    
                 }
 
                 return result;
@@ -2138,14 +2203,14 @@ namespace cgmSvg
                         green = buffer[3];
                         blue = buffer[5];
                     }
-
+                    
                     elemColor = Color.FromArgb(alpha, red, green, blue);
                 }
                 if (buffer.Length == 1)
                 {
                     if (colorTable.Count() == 0)
                     {
-                        if (palette.Count() > buffer[0])
+                        if(palette.Count() > buffer[0])
                         {
                             elemColor = palette[buffer[0]];
                         }
@@ -2153,7 +2218,7 @@ namespace cgmSvg
                         {
                             elemColor = buffer[0] > 0 ? Color.FromArgb(255, buffer[0], buffer[0], buffer[0]) : Color.FromArgb(255, 255, 255, 255);
                         }
-                    }
+                    }                
                     else if (colorTable.Count() > buffer[0])
                     {
                         elemColor = colorTable[buffer[0]];
@@ -2206,13 +2271,13 @@ namespace cgmSvg
                     int colr_idx = (int)bytes_getValue_color(buffer, colour_precision);
                     elemColor = Color.FromArgb(255, colr_idx, colr_idx, colr_idx);
                 }
-                else
+                else 
                 {
                     colour_precision = 8 * buffer.Length;
                     int colr_idx = (int)bytes_getValue_color(buffer, colour_precision);
                     if (colorTable == null)
                     {
-
+                        
                     }
                     else if (colorTable.Count() > colr_idx)
                     {
@@ -2253,7 +2318,7 @@ namespace cgmSvg
                     if (colourSelectionMode == "indexed colour mode")
                     {
                         buffer = new byte[4];
-                        buffer[0] =
+                        buffer[0] = 
                         buffer[1] =
                         buffer[2] = (byte)(cval * 255 / maximum_colour_index);
                     }
@@ -2263,9 +2328,9 @@ namespace cgmSvg
                         for (int j = 0; j < 4; j++)
                         {
                             string c = binStr.ToCharArray()[j * 2].ToString() + binStr.ToCharArray()[(j * 2) + 1].ToString();
-                            buffer[j] = (byte)(Convert.ToUInt16(c, 10));
+                            buffer[j] = (byte)(Convert.ToUInt16(c, 10) );
                         }
-
+                        
                     }
                     elemColor = Color.FromArgb(255, (int)buffer[0], (int)buffer[1], (int)buffer[2]);
 
@@ -2279,7 +2344,7 @@ namespace cgmSvg
                     binStr = binStr.PadLeft(8, '0');
                     foreach (char c in binStr.ToCharArray())
                     {
-                        elemColor = c == '0' ? Color.Black : Color.White;
+                        elemColor = c == '0' ? Color.Black : Color.White;                        
                     }
                 }
                 else if (color_precision == 2)
@@ -2389,7 +2454,7 @@ namespace cgmSvg
             {
                 Console.WriteLine(elemName.ToString());
             }
-
+         
             if (paramLen >= 31)
             {
                 getNextMetaLongLenth(br, buffer, out  paramLen);
@@ -2420,34 +2485,34 @@ namespace cgmSvg
                 }
                 PointF[] pqr = Cgm_Elements.Last().points.ToArray();
 
-
+                
                 double angle;
                 double angle2;
                 float slope;
                 float b_int;
-
+                
                 double PR = distance_180_xrs(pqr[0], pqr[2], out angle, out angle2, out slope, out b_int);
-
+                
                 float sy = (float)(PR * Math.Sin(angle * Math.PI / 180));
                 float sx = (float)(PR * Math.Cos(angle * Math.PI / 180));
-                PointF pointS = new PointF(pqr[1].X - sx, pqr[1].Y - sy);
+                PointF pointS = new PointF( pqr[1].X - sx, pqr[1].Y - sy);
 
                 Cgm_Elements.Last().points.Add(pointS);
                 pqr = Cgm_Elements.Last().points.ToArray();
 
 
-                double PQ = distance_180_xrs(pqr[0], pqr[1], out angle, out angle2, out slope, out b_int);
+                double PQ = distance_180_xrs(pqr[0], pqr[1], out angle, out angle2, out slope, out b_int);                
                 double QR = distance_180_xrs(pqr[0], pqr[2], out angle, out angle2, out slope, out b_int);
-
+                
 
                 List<float> xVals = pqr.Select(fd => fd.X).ToList();
                 List<float> yVals = pqr.Select(fd => fd.Y).ToList();
                 xVals.Sort();
                 yVals.Sort();
 
-                float w_rt = (float)(Math.Abs(xVals.First() - xVals.Last()));
-                float h_rt = (float)(Math.Abs(yVals.First() - yVals.Last()));
-
+                float w_rt = (float)(Math.Abs( xVals.First() - xVals.Last()));
+                float h_rt = (float)(Math.Abs( yVals.First() - yVals.Last()));
+                
                 float w = (float)PR;
                 float h = (float)QR;
 
@@ -2459,20 +2524,20 @@ namespace cgmSvg
                     w_rt *= 1000;
                     h_rt *= 1000;
 
-
+                    
                     Cgm_Elements.Last().imageScale = 1f / 1000;
-
+                    
                 }
-
+                
 
                 angle = -1 * Math.Round(angle, 0);
 
                 precision = Cgm_Elements.Last().getPrecision_int();
-                byteLen = precision / 8;
+                byteLen = precision / 8;         
                 buffer = new byte[byteLen];
                 bytesRead += br.Read(buffer, 0, buffer.Length);
                 int nx = (int)Cgm_Elements.Last().bytes_getValue_int(buffer, precision);
-
+         
 
                 buffer = new byte[byteLen];
                 bytesRead += br.Read(buffer, 0, buffer.Length);
@@ -2482,7 +2547,7 @@ namespace cgmSvg
                 bytesRead += br.Read(buffer, 0, buffer.Length);
                 int color_precision = (int)Cgm_Elements.Last().bytes_getValue_int(buffer, precision);
 
-                int bcnt = Cgm_Elements.Last().idx_precision / 8;
+                int bcnt = Cgm_Elements.Last().idx_precision/8;
                 buffer = new byte[2];
                 bytesRead += br.Read(buffer, 0, buffer.Length);
                 float row_mode = Cgm_Elements.Last().bytes_getValue_int(buffer, 16);
@@ -2491,7 +2556,7 @@ namespace cgmSvg
                 List<Color> pixels = new List<Color>();
 
 
-
+                
                 #endregion
 
                 if (row_mode == 0)
@@ -2550,25 +2615,25 @@ namespace cgmSvg
                 {
                     #region MyRegion
                     int len = paramLen - bytesRead;
-
-
+                    
+                    
                     for (int i = 0; i < len; i++)
                     {
                         Color elemColor = new Color();
-                        int colorBytes = color_precision / 8;
-                        if (colorBytes == 4)
+                        int colorBytes = color_precision / 8;                                                
+                        if(colorBytes == 4)
                         {
                             buffer = new byte[colorBytes];
                             bytesRead += br.Read(buffer, 0, buffer.Length);
-                            elemColor = Color.FromArgb(buffer[0], (int)buffer[1], (int)buffer[2], (int)buffer[3]);
-                            pixels.Add(elemColor);
+                             elemColor = Color.FromArgb(buffer[0], (int)buffer[1], (int)buffer[2], (int)buffer[3]);
+                             pixels.Add(elemColor);
                         }
-                        else if (colorBytes == 3)
+                        else if (colorBytes == 3) 
                         {
                             buffer = new byte[colorBytes];
                             bytesRead += br.Read(buffer, 0, buffer.Length);
-                            elemColor = Color.FromArgb(255, (int)buffer[0], (int)buffer[1], (int)buffer[2]);
-                            pixels.Add(elemColor);
+                             elemColor = Color.FromArgb(255, (int)buffer[0], (int)buffer[1], (int)buffer[2]);
+                             pixels.Add(elemColor);
                         }
                         else if (colorBytes == 1)
                         {
@@ -2581,12 +2646,12 @@ namespace cgmSvg
                             for (int j = 0; j < 4; j++)
                             {
                                 string c = binStr.ToCharArray()[j * 2].ToString() + binStr.ToCharArray()[(j * 2) + 1].ToString();
-                                buffer[j] = (byte)Convert.ToUInt16(c, 10);
+                                 buffer[j] = (byte)Convert.ToUInt16(c, 10);
                             }
                             elemColor = Color.FromArgb(255, (int)buffer[0], (int)buffer[1], (int)buffer[2]);
                             pixels.Add(elemColor);
-                        }
-                        else if (color_precision == 1)
+                        }                        
+                        else if (color_precision == 1) 
                         {
                             buffer = new byte[1];
                             bytesRead += br.Read(buffer, 0, buffer.Length);
@@ -2597,32 +2662,32 @@ namespace cgmSvg
                             {
                                 elemColor = c == '0' ? Color.Black : Color.White;
                                 pixels.Add(elemColor);
-                            }
-                        }
-                        else if (color_precision == 2)
+                            }                            
+                        }                        
+                        else if (color_precision == 2) 
                         {
                             buffer = new byte[1];
                             bytesRead += br.Read(buffer, 0, buffer.Length);
                             int cval = (int)Cgm_Elements.Last().bytes_getValue_int(buffer, 8);
-                            string binStr = Convert.ToString(cval, 2).PadLeft(8, '0');
+                            string binStr = Convert.ToString(cval, 2).PadLeft(8,'0');
                             for (int j = 0; j < 4; j++)
                             {
                                 string c = binStr.ToCharArray()[j * 2].ToString() + binStr.ToCharArray()[(j * 2) + 1].ToString();
                                 int intensity = (byte)Convert.ToUInt16(c, 2);
-                                intensity = intensity * 255 / 7;
+                                intensity = intensity  * 255 / 7;
                                 elemColor = Color.FromArgb(255, intensity, intensity, intensity);
                                 pixels.Add(elemColor);
                             }
 
                         }
-                        else if (color_precision == 4)
+                        else if (color_precision == 4) 
                         {
                             buffer = new byte[1];
                             bytesRead += br.Read(buffer, 0, buffer.Length);
                             int cval = (int)Cgm_Elements.Last().bytes_getValue_int(buffer, 8);
                             string binStr = Convert.ToString(cval, 2).PadLeft(8, '0');
 
-
+                            
 
                             for (int j = 0; j < 2; j++)
                             {
@@ -2631,7 +2696,7 @@ namespace cgmSvg
                                     binStr.ToCharArray()[(j * 4) + 1].ToString() +
                                     binStr.ToCharArray()[(j * 4) + 2].ToString() +
                                     binStr.ToCharArray()[(j * 4) + 3].ToString();
-                                int intensity = (byte)Convert.ToUInt16(c, 2);
+                                int intensity = (byte)Convert.ToUInt16(c, 2);                                
                                 elemColor = Cgm_Elements.Last().colorTable[intensity];
                                 pixels.Add(elemColor);
                             }
@@ -2648,11 +2713,11 @@ namespace cgmSvg
                             }
                             pixels.Add(elemColor);
                         }
+                        
 
-
-
-
-
+                        
+                        
+                        
                     }
 
                     #endregion
@@ -2661,38 +2726,38 @@ namespace cgmSvg
                 #region Create Bitmap
                 Cgm_Elements.Last().rasterImage = new Bitmap((int)w_rt, (int)h_rt);
                 Cgm_Elements.Last().imageRotation = 0;
-
+                
                 Graphics g = Graphics.FromImage(Cgm_Elements.Last().rasterImage);
                 if (angle != 0)
                 {
                     g.TranslateTransform(0, h_rt / 2);
                     g.RotateTransform((float)angle);
                 }
+                
 
-
-                float xrex = (float)Math.Round(w / nx, 0);
+                float xrex =(float)Math.Round(w / nx, 0);
 
                 float yres = (float)Math.Round(h / ny, 0);
 
                 int k = 0;
-
-                for (int i = 0; i < ny; i++)
+                
+                for (int i = 0; i < ny; i ++)
                 {
-                    for (int j = 0; j < nx; j++)
+                    for (int j = 0; j < nx; j ++)
                     {
                         Color pixel_c = pixels[k];
                         g.FillRectangle(new SolidBrush(pixel_c), j * xrex, i * yres, (int)xrex, (int)yres);
                         k++;
                     }
                 }
-                g.TranslateTransform(-w / 2, -h / 2);
-
+                g.TranslateTransform(-w / 2, -h / 2); 
+                
                 #endregion
                 if (br.BaseStream.Position % 2 != 0)
                 {
                     bytesRead += br.Read(buffer, 0, 1);
-                }
-                #endregion
+                }  
+                #endregion                
             }
             else if (elemName == "TEXT ALIGNMENT")
             {
@@ -2769,7 +2834,7 @@ namespace cgmSvg
                 br.Read(buffer, 0, buffer.Length);
                 float continuousVerticalAlignment = Cgm_Elements.Last().bytes_getValue_real(buffer, real_p);
 
-                Cgm_Elements.Last().continuousVerticalAlignment = continuousVerticalAlignment;
+                Cgm_Elements.Last().continuousVerticalAlignment = continuousVerticalAlignment; 
                 #endregion
             }
             else if (elemName == "BEGIN TILE ARRAY")
@@ -2852,7 +2917,7 @@ namespace cgmSvg
 
                 buffer = new byte[Cgm_Elements.Last().integer_precision / 8];
                 bytesRead += br.Read(buffer, 0, buffer.Length);
-                Cgm_Elements.Last().nCellsInLineDirection = (int)Cgm_Elements.Last().bytes_getValue_int(buffer, Cgm_Elements.Last().integer_precision);
+                Cgm_Elements.Last().nCellsInLineDirection = (int)Cgm_Elements.Last().bytes_getValue_int(buffer, Cgm_Elements.Last().integer_precision); 
                 #endregion
             }
             else if (elemName == "BITONAL TILE")
@@ -2896,13 +2961,13 @@ namespace cgmSvg
                     int h = beginTileArray.nCellsPerTileInLineDirection;
                     Cgm_Elements.Last().imageScale_x = 1 / beginTileArray.cellSizeInPathDirection;
                     Cgm_Elements.Last().imageScale_y = 1 / beginTileArray.cellSizeInLineDirection;
-
+                    
 
                     int x, y;
                     x = y = 0;
 
                     int remainingBytes = paramLen - bytesRead;
-                    byte[] compressedData = new byte[remainingBytes];
+                    byte[] compressedData = new byte[remainingBytes];                    
                     bytesRead = br.Read(compressedData, 0, compressedData.Length);
                     y = y + bytesRead;
 
@@ -2920,7 +2985,7 @@ namespace cgmSvg
 
 
                     }
-
+                    
                     #endregion
 
                     len = compressedData.Length;
@@ -2965,22 +3030,22 @@ namespace cgmSvg
                         output.SetField(TiffTag.COMPRESSION, Compression.CCITT_T6);
                         output.SetField(TiffTag.FILLORDER, 1);
                         output.WriteRawStrip(0, compressedData, compressedData.Length);
-
+                        
 
                         output.CheckpointDirectory();
-                        long streamSize = output.GetStream().Size(output.Clientdata());
+                        long streamSize = output.GetStream().Size(output.Clientdata());                                                
                         ms.Position = 0;
                         Cgm_Elements.Last().rasterImage = new Bitmap(ms);
                         Cgm_Elements.Last().rasterImage.MakeTransparent(Color.White);
                         output.Close();
                         ms.Close();
-
+                        
                         //Cgm_Elements.Last().rasterImage = new Bitmap(filename + ".tif");
                         //Cgm_Elements.Last().rasterImage.MakeTransparent(Color.White);
 
                     }
                     #endregion
-                }
+                } 
                 #endregion
             }
             else if (elemName == "PATTERN TABLE")
@@ -3005,15 +3070,15 @@ namespace cgmSvg
                 int precision = (int)Cgm_Elements.Last().bytes_getValue_uint(buffer, Cgm_Elements.Last().integer_precision);
                 precision = precision == 0 ? Cgm_Elements.Last().colour_idx_precision : precision;
                 bool directColor = Cgm_Elements.Last().colourSelectionMode == "indexed colour mode";
-
+                
                 bytesRead = paramLen - bytesRead;
 
-                int pixels = bytesRead / (precision / 8);
+                int pixels = bytesRead / (precision/8);
 
-
+                
                 List<Color> pixelList = new List<Color>();
                 while (pixels > 0)
-                {
+                {                    
                     Color c = Cgm_Elements.Last().getColor(precision, br);
                     pixelList.Add(c);
                     pixels -= 1;
@@ -3068,7 +3133,7 @@ namespace cgmSvg
                     float py = Cgm_Elements.Last().bytes_getValue(buffer, p);
 
 
-                    buffer = new byte[2];
+                    buffer = new byte[Cgm_Elements.Last().idx_precision/8];
                     br.Read(buffer, 0, buffer.Length);
                     string polygonFlag = "";
                     switch (buffer.Last())
@@ -3951,7 +4016,7 @@ namespace cgmSvg
                 int words_cnt = paramLen;
                 while (words_cnt > 0)
                 {
-                    getNextMetaElement(ref br, ref buffer, out bytesread, ref paramLen, out elemclass, out elemId, out elemName, Cgm_Elements);
+                    getNextMetaElement(ref br, ref buffer, out bytesread, ref paramLen, out elemclass, out elemId, out elemName, Cgm_Elements);                    
                     parseMetaElement(ref br, ref buffer, ref bytesread, ref paramLen, ref elemclass, ref elemId, ref elemName, ref Cgm_Elements, false);
                     words_cnt -= bytesread;
                 }
@@ -4031,7 +4096,7 @@ namespace cgmSvg
                     br.Read(buffer, 0, buffer.Length);
                     cc = Color.FromArgb(255, buffer[0], buffer[1], buffer[2]);
                     Cgm_Elements.Last().max_rgb = cc;
-                    Cgm_Elements.Last().pixel_precision = 8 * (paramLen / 2);
+                    Cgm_Elements.Last().pixel_precision = 8 *  (paramLen / 2);
                 }
                 else if (paramLen == 12)
                 {
@@ -4101,7 +4166,7 @@ namespace cgmSvg
                 buffer = new byte[paramLen];
                 br.Read(buffer, 0, buffer.Length);
                 Cgm_Elements.Last().pixel_precision = 3 * (int)Cgm_Elements.Last().bytes_getValue_int(buffer, paramLen * 8);
-                Cgm_Elements.Last().colour_precision = (int)Cgm_Elements.Last().bytes_getValue_int(buffer, paramLen * 8);
+                Cgm_Elements.Last().colour_precision =  (int)Cgm_Elements.Last().bytes_getValue_int(buffer, paramLen * 8);
                 #endregion
             }
             else if (elemName == "COLOUR INDEX PRECISION")
@@ -4392,8 +4457,8 @@ namespace cgmSvg
                 buffer = new byte[bcnt];
                 readBytes += br.Read(buffer, 0, buffer.Length);
                 float len = Cgm_Elements.Last().bytes_getValue(buffer, p);
-
-
+                    
+                    
                 Cgm_Elements.Last().lineEdgeDefs.dashCycle_Length = len;
 
                 p = Cgm_Elements.Last().integer_precision;
@@ -4408,7 +4473,7 @@ namespace cgmSvg
                 }
                 float factor = len / Cgm_Elements.Last().lineEdgeDefs.dashseq.Sum();
                 Cgm_Elements.Last().lineEdgeDefs.dashseq = Cgm_Elements.Last().lineEdgeDefs.dashseq.Select(fd => fd * factor).ToList();
-
+                
                 lineEdgeTypeLookUp.Add(Cgm_Elements.Last().lineEdgeDefs);
                 #endregion
             }
@@ -4462,7 +4527,7 @@ namespace cgmSvg
                     {
                         Cgm_Elements.Last().strokeWidth = 0.001f;
                     }
-                }
+                }                
                 #endregion
             }
             else if (elemName == "MARKER SIZE SPECIFICATION MODE")
@@ -4525,7 +4590,7 @@ namespace cgmSvg
                     {
                         Cgm_Elements.Last().edgeWidth = 0.001f;
                     }
-                }
+                }                
                 #endregion
             }
             else if (elemName == "LINE JOIN")
@@ -5024,7 +5089,7 @@ namespace cgmSvg
             }
             else if (elemName == "BEGIN PICTURE")
             {
-
+             
                 #region MyRegion
                 if (paramLen > 0)
                 {
@@ -5220,7 +5285,7 @@ namespace cgmSvg
                 #region MyRegion
                 buffer = new byte[paramLen];
                 br.Read(buffer, 0, buffer.Length);
-
+                
                 #endregion
             }
             else if (elemName == "MAXIMUM COLOUR INDEX")
@@ -5330,14 +5395,14 @@ namespace cgmSvg
                 buffer = buffer.Where(fd => fd >= 32).ToArray();
                 str = System.Text.Encoding.Default.GetString(buffer);
             }
-
+          
             if (getNext)
             {
                 getNextMetaElement(ref br, ref buffer, out bytesread, ref paramLen, out elemclass, out elemId, out elemName, Cgm_Elements);
             }
             buf = buffer;
         }
-
+       
         public void getNextMetaLongLenth(BinaryReader br, byte[] buffer, out int paramLen)
         {
             buffer = new byte[2];
@@ -5357,9 +5422,9 @@ namespace cgmSvg
                 paramLen_rollover = true;
                 paramLen = paramLen & 0x7FFF;
             }
+           
 
-
-
+          
         }
 
         public List<Cgm_Element> getNextMetaElement(ref BinaryReader br, ref byte[] buffer, out int bitsread, ref int paramLen, out byte elemclass, out byte elemId, out string elemName, List<Cgm_Element> Cgm_Elements)
@@ -5382,8 +5447,8 @@ namespace cgmSvg
 
             UInt16 cw = Convert.ToUInt16(binStr, 2);
             paramLen = (UInt16)(cw & 0x1f);
-
-
+            
+            
 
             byte elemclassX = (byte)(cw >> 12);
             byte elemIdX = (byte)((cw >> 5) & 0x7f);
@@ -5404,7 +5469,7 @@ namespace cgmSvg
                 {
                     Console.WriteLine("err");
                 }
-            }
+            } 
             #endregion
             Cgm_Element lastElem = Cgm_Elements.Count == 0 ? new Cgm_Element() : Cgm_Elements.Last();
             Cgm_Elements.Add(new Cgm_Element
@@ -5435,13 +5500,13 @@ namespace cgmSvg
                 page_width = lastElem.page_width,
                 page_height = lastElem.page_height,
                 true_width = lastElem.true_width,
-                true_height = lastElem.true_height,
+                true_height = lastElem.true_height,                
                 colourTable_start_idx = lastElem.colourTable_start_idx,
                 bgColor = lastElem.bgColor,
                 mitreLimit = lastElem.mitreLimit,
                 fill_style = lastElem.fill_style,
                 hatch_style = lastElem.hatch_style,
-                hatch_id = lastElem.hatch_id,
+                hatch_id =  lastElem.hatch_id,
                 pattern_idx = lastElem.pattern_idx,
                 vdcType = lastElem.vdcType,
                 vdc_integer_precision = lastElem.vdc_integer_precision,
@@ -5464,7 +5529,7 @@ namespace cgmSvg
                 realType = lastElem.realType,
                 vdc_realType = lastElem.vdc_realType,
                 isbottomUp = lastElem.isbottomUp,
-                picture_idx = lastElem.picture_idx,
+                picture_idx = lastElem.picture_idx,                
                 vdc_idx = lastElem.vdc_idx,
                 v_alignment_name = lastElem.v_alignment_name,
                 h_alignment_name = lastElem.h_alignment_name,
@@ -5472,7 +5537,7 @@ namespace cgmSvg
                 h_alignment = lastElem.h_alignment,
                 edgeSizeMode = lastElem.edgeSizeMode,
                 lineSizeMode = lastElem.lineSizeMode,
-                markerSizeMode = lastElem.markerSizeMode
+                markerSizeMode = lastElem.markerSizeMode 
             });
 
             //Cgm_Elements.Last().elemParams = new byte[paramLen];
@@ -5495,8 +5560,8 @@ namespace cgmSvg
 
 
             XmlDocument hatch = new XmlDocument();
-
-            hatch_idx = String.Format("hashtype_{0}", hatch_idx);
+            
+            hatch_idx =  String.Format("hashtype_{0}", hatch_idx);
 
             byte[] data = (byte[])cgm_struct.ResourceManager.GetObject(hatch_idx);
 
@@ -5528,7 +5593,7 @@ namespace cgmSvg
 
         }
 
-        public void createImagePattern(XmlDocument cgm_svg, List<Cgm_Element> PattenTables, float scale)
+        public void createImagePattern(XmlDocument cgm_svg, List<Cgm_Element> PattenTables,float scale)
         {
 
             foreach (Cgm_Element patten in PattenTables.Where(fd => fd.elem_Name == "PATTERN TABLE").ToList())
@@ -5546,7 +5611,7 @@ namespace cgmSvg
                 }
                 hatchpattern = cgm_svg.CreateElement("pattern");
 
-
+                
                 hatchpattern.Attributes.Append(cgm_svg.CreateAttribute("id")).Value = pattern_id;
                 hatchpattern.Attributes.Append(cgm_svg.CreateAttribute("patternUnits")).Value = "userSpaceOnUse";
                 hatchpattern.Attributes.Append(cgm_svg.CreateAttribute("height")).Value = (patten.rasterImage.Width * scale).ToString();
@@ -5562,41 +5627,41 @@ namespace cgmSvg
                 defs.AppendChild(hatchpattern);
 
             }
-
+            
 
         }
-
+        
         public double distance(PointF p1, PointF p2, out double angle)
         {
-            double dist = Math.Sqrt(Math.Pow(p2.X - p1.X, 2) + Math.Pow(p2.Y - p1.Y, 2));
-            angle = Math.Atan2((p2.Y - p1.Y), (p2.X - p1.X)) * 180 / Math.PI;
-
+            double dist =Math.Sqrt( Math.Pow(p2.X - p1.X, 2)  + Math.Pow(p2.Y - p1.Y, 2) );
+            angle = Math.Atan2((p2.Y - p1.Y) , ( p2.X - p1.X) ) *  180 / Math.PI;
+            
             return dist;
         }
-
+        
         public PointF midPoint(PointF p1, PointF p2)
         {
             return new PointF(
             (p2.X + p1.X) / 2,
             (p2.Y + p1.Y) / 2
             );
-
+            
         }
 
         public double distance_180(PointF p1, PointF p2)
         {
-            double dist = Math.Sqrt(Math.Pow(p2.X - p1.X, 2) + Math.Pow(p2.Y - p1.Y, 2));
+            double dist = Math.Sqrt(Math.Pow(p2.X - p1.X, 2) + Math.Pow(p2.Y - p1.Y, 2));            
             return dist;
         }
-
+        
         public double distance_180(PointF p1, PointF p2, out double angle, out float slope, out float b_int)
         {
-
-            double dist = Math.Sqrt(Math.Pow(p2.X - p1.X, 2) + Math.Pow(p2.Y - p1.Y, 2));
-            angle = Math.Atan2((p2.Y - p1.Y), (p2.X - p1.X)) * 180 / Math.PI;
+            
+            double dist = Math.Sqrt(Math.Pow(p2.X - p1.X, 2) + Math.Pow(p2.Y - p1.Y, 2));            
+            angle = Math.Atan2((p2.Y - p1.Y),  (p2.X - p1.X)) * 180 / Math.PI;
             angle = Math.Round(angle, 2);
             int sign = Math.Sign(angle);
-            slope = (float)((Math.Round(p2.Y, 2) - Math.Round(p1.Y, 2)) / (Math.Round(p2.X, 2) - Math.Round(p1.X, 2)));
+            slope =   (float)(( Math.Round(  p2.Y, 2) - Math.Round(  p1.Y, 2)) /( Math.Round(  p2.X, 2) - Math.Round(  p1.X, 2)));
             b_int = p1.X;
 
             float m1 = p1.Y / p1.X;
@@ -5617,33 +5682,33 @@ namespace cgmSvg
 
             float m1 = p1.Y / p1.X;
             float m2 = p2.Y / p2.X;
-
+            
             if (float.IsNegativeInfinity(m1) && m2 == 0)
             {
-                angle_crx = Math.Sign(p2.X) * -90;
-
+                angle_crx = Math.Sign(p2.X)  * -90;
+                
             }
             else if (float.IsInfinity(m1) && m2 == 0)
             {
-                angle_crx = Math.Sign(p2.X) * 90;
+                angle_crx =  Math.Sign(p2.X) * 90;
 
             }
             else if (float.IsNegativeInfinity(m2) && m1 == 0)
             {
                 angle_crx = Math.Sign(p1.X) * 90;
-
+               
             }
             else if (float.IsInfinity(m2) && m1 == 0)
             {
                 angle_crx = Math.Sign(p1.X) * -90;
-
+               
             }
-
+  
             else if (m1 == 0 || m2 == 0)
             {
                 double v1 = Math.Atan2(p1.Y, p1.X) * 180 / Math.PI;
                 double v2 = Math.Atan2(p2.Y, p2.X) * 180 / Math.PI;
-
+    
                 if (v2 < v1 && v1 <= 180 + v2)
                 {
                     angle_crx = v1 - v2;
@@ -5656,8 +5721,8 @@ namespace cgmSvg
                         angle_crx = angle_crx - 360;
                     }
                 }
-
-
+               
+                
             }
             else
             {
@@ -5665,15 +5730,15 @@ namespace cgmSvg
                 double v2 = Math.Atan2(p2.Y, p2.X) * 180 / Math.PI;
                 v1 = Math.Round(v1, 3);
                 v2 = Math.Round(v2, 3);
-                if (v2 < v1 && v1 <= 180 + v2)
+                if ( v2 < v1 && v1 <= 180 + v2)
                 {
-                    angle_crx = v1 - v2;
+                     angle_crx =  v1- v2;
                 }
                 else if (v2 < (360 + v1) && (360 + v1) <= 180 + v2)
                 {
                     angle_crx = (360 + v1) - v2;
                 }
-                else if (180 + v2 < v1 && v1 > 0)
+                else if (180 + v2 <  v1 && v1 > 0 )
                 {
                     angle_crx = v1 - v2;
                     if (angle_crx > 180)
@@ -5685,12 +5750,12 @@ namespace cgmSvg
                 {
                     angle_crx = (360 + v1) - v2 - 360;
                 }
-
+ 
             }
             angle_crx = Math.Round(angle_crx, 3);
             return dist;
         }
-
+        
         public double distance_90(PointF p1, PointF p2, out double angle, out float slope, out float b_int)
         {
             double dist = Math.Sqrt(Math.Pow(p2.X - p1.X, 2) + Math.Pow(p2.Y - p1.Y, 2));
@@ -5718,11 +5783,11 @@ namespace cgmSvg
             //PointF p2 = PointF.Subtract(cgmElement.points[2], new SizeF(cgmElement.points[0].X, cgmElement.points[0].Y));
             //distance_180_xrs(p1, p2, out angle_1, out angle_2, out slope_D2, out b_2);
 
-
+            
             PointF rP_minor = cgmElement.points[2];
             PointF rP_major = cgmElement.points[1];
             angle_2 = Math.Round(angle_2, 0);
-            if ((int)(Math.Cos(Math.Abs(angle_2 * Math.PI / 180)) * 100) != 0 && (int)(Math.Cos(Math.Abs(angle_2 * Math.PI / 180)) * 100) != 100)
+            if ((int)(Math.Cos(Math.Abs(angle_2 * Math.PI / 180)) * 100) != 0 && (int)(Math.Cos(Math.Abs(angle_2 * Math.PI / 180)) * 100) != 100)  
             {
                 if (rx > ry)
                 {
@@ -5733,7 +5798,7 @@ namespace cgmSvg
                     ry = distance_180(cgmElement.points[0], cgmElement.points[1], out angle_p2, out slope_D2, out b_2);
                     rP_minor = cgmElement.points[1];
                     rP_major = cgmElement.points[2];
-                }
+                }            
                 slope_D1 = -1 / slope_D1;
                 PointF D = new PointF(0, cgmElement.points[0].Y);
                 if (float.IsInfinity(slope_D1))
@@ -5744,37 +5809,37 @@ namespace cgmSvg
                 else
                 {
                     double tetha = Math.PI * ((360 + angle_p1) - 90) / 180;
-                    double xDelta = (Math.Cos(tetha) * rx);
-                    double yDelta = (Math.Sin(tetha) * rx);
-
+                    double xDelta =(Math.Cos(tetha) * rx);
+                    double yDelta =(Math.Sin(tetha) * rx);
+              
 
                     D.X = (float)(rP_minor.X + xDelta);
                     D.Y = (float)(rP_minor.Y + yDelta);
                 }
-
-
+                
+                
 
                 double DC_diam = distance_180(cgmElement.points[0], D, out angle_p2, out slope_D2, out b_2);
                 PointF C = midPoint(cgmElement.points[0], D);
                 double RC = distance_180(rP_minor, C, out angle_p1, out slope_D2, out b_2);
 
                 SizeF jj = new SizeF(
-                   Math.Abs(((float)(Math.Cos(Math.Atan(slope_D2)) * DC_diam / 2)))
+                   Math.Abs ( ((float)(Math.Cos(Math.Atan(slope_D2)) * DC_diam / 2)) )
                     ,
                    Math.Abs(((float)(Math.Sin(Math.Atan(slope_D2)) * DC_diam / 2)))
                     );
                 bool sign_m = Math.Sign(slope_D2) == 1;
                 bool sign_a = Math.Sign(angle_p1) == 1;
 
-                PointF G = new PointF();
+                PointF  G = new PointF();
                 PointF E = new PointF();
-
+                 
                 if (sign_m && sign_a)
                 {
                     G.X = C.X + jj.Width;
                     G.Y = C.Y + jj.Height;
                     E.X = C.X - jj.Width;
-                    E.Y = C.Y - jj.Height;
+                    E.Y = C.Y - jj.Height;                    
                 }
                 else if (!sign_m && !sign_a)
                 {
@@ -5782,7 +5847,7 @@ namespace cgmSvg
                     G.Y = C.Y - jj.Height;
                     E.X = C.X - jj.Width;
                     E.Y = C.Y + jj.Height;
-                }
+                }   
                 else if (!sign_m && sign_a)
                 {
                     G.X = C.X - jj.Width;
@@ -5815,10 +5880,9 @@ namespace cgmSvg
                 //E = PointF.Subtract(E, new SizeF(cgmElement.points[0].X, cgmElement.points[0].Y));
                 //G = PointF.Subtract(G, new SizeF(cgmElement.points[0].X, cgmElement.points[0].Y));
                 //distance_180_xrs(G, E, out angle, out angle_2, out slope_D2, out b_2);
-
+                
             }
-            else
-            {
+            else{
                 if (rx < ry)
                 {
                     angle = rx;
@@ -5831,29 +5895,29 @@ namespace cgmSvg
                 {
                     angle = angle_p1;
                     angle_2 = angle_2;
-                }
+                }                
             }
             if (angle_2 > 180)
             {
                 angle_2 = angle_2 - 360;
             }
         }
-
+        
         void getellipse(Cgm_Element cgmElement, out double rx, out double ry, out double angle)
         {
             double angle_p1 = 0;
-            double angle_p2 = 0;
+            double angle_p2 = 0;                        
             float slope_D1;
             float slope_D2;
             float b_1;
             float b_2;
 
-
+            
             rx = distance_90(cgmElement.points[0], cgmElement.points[1], out angle_p1, out slope_D1, out b_1);
             ry = distance_90(cgmElement.points[0], cgmElement.points[2], out angle_p2, out slope_D2, out b_2);
             angle = (angle_p2 - angle_p1);
 
-            if ((int)Math.Sin(angle) != 0)
+            if ( (int)Math.Sin(angle) != 0  )
             {
                 SizeF ss = (new SizeF(cgmElement.points[1]) - new SizeF(cgmElement.points[0]));
                 ss.Height = Math.Abs(ss.Height);
@@ -5878,7 +5942,7 @@ namespace cgmSvg
                 rx = distance_90(cgmElement.points[2], G, out angle_p2, out slope_D2, out b_2);
                 ry = distance_90(cgmElement.points[2], E, out angle_p2, out slope_D2, out b_2);
                 double dist_EC = distance_90(cgmElement.points[0], E, out angle, out slope_D2, out b_2);
-
+                
             }
             else
             {
@@ -5900,37 +5964,37 @@ namespace cgmSvg
             float s_teta_2 = s_teta * s_teta;
             float a2 = d1 * d1;
             float b2 = d2 * d2;
-
+            
             float A, B, C, D, E, F;
 
             A = (c_teta_2 / a2) + (s_teta_2 / b2);
-            B = 2 * (c_teta * s_teta * ((1 / a2) - (1 / b2)));
-            C = (s_teta_2 / a2) + (c_teta_2 / b2);
+            B = 2 * (c_teta * s_teta * ((1 / a2) - (1 / b2)));            
+            C = (s_teta_2 / a2 )+ (c_teta_2 / b2);
 
             float x = 0;
             float y = 0;
             float res = 1;
 
-            float h2 = h * h;
-            float k2 = k * k;
+            float h2 = h*h;
+            float k2 = k*k;
             float xr0 = Math.Min(xMax, h) - 1;
             float xr1 = Math.Max(xMax, h);
             float[] range = { 0 };
             float d3 = Math.Max(d2, d1);
             #region MyRegion
-
+           
             if (m == 0)
             {
 
                 if (h > xMax)
                 {
-                    xr1 = h;
+                    xr1 = h ;
                     xr0 = h - (d3 + 1);
                     xr0 = Math.Min(xMax, xr0) - 2;
                 }
                 else if (h < xMax)
                 {
-                    xr0 = h;
+                    xr0 = h ;
                     xr1 = h + (d3 + 1);
                     xr1 = Math.Max(xMax, xr1);
                 }
@@ -5940,8 +6004,8 @@ namespace cgmSvg
                 if (float.IsNegativeInfinity(m))
                 {
                     xr1 = k;
-                    xr0 = k - (2 * d3);
-
+                    xr0 = k - (2*d3);
+                    
                 }
                 else
                 {
@@ -5966,21 +6030,21 @@ namespace cgmSvg
                 if (h > xMax)
                 {
                     xr1 = h + 3;
-                    xr0 = h - (d3 + 1);
+                    xr0 = h - (d3 + 3);
                     xr0 = Math.Min(xMax, xr0) - 2;
                 }
                 else if (h < xMax)
                 {
                     xr0 = h;
-                    xr1 = h + (d3 + 1);
+                    xr1 = h + (d3 + 3);
                     xr1 = Math.Max(xMax, xr1);
                 }
             }
             float upperLimit = (xr1 - xr0 + 1) * 1;
             //range = Enumerable.Range((int)xr0-1, (int)(upperLimit)/0.01).Select(fd => (float)(fd + (1 / 1))).ToArray();
-            range = Enumerable.Range(0, (int)(upperLimit / 0.010)).Select(fd => (float)(xr0 - 0) + ((float)fd / 100)).ToArray();
-
-
+            range = Enumerable.Range(0, (int)(upperLimit/0.010)).Select(fd => (float)(xr0 - 0) + ((float)fd / 100)).ToArray();
+            
+                
             int i = 0;
             int sign = 0;
 
@@ -6022,7 +6086,7 @@ namespace cgmSvg
             y = 0;
             //Console.WriteLine(res.ToString() + "\t" + x + "\t" + y); 
             #endregion
-
+            
             for (; i < max_i; i++)
             {
                 //Console.WriteLine(res.ToString() + "\t" + x + "\t" + y);
@@ -6033,20 +6097,20 @@ namespace cgmSvg
                 }
                 else
                 {
-                    x = range[i];
+                    x = range[i];                   
                     y = m * (x - x1) + y1;
                 }
 
                 A1 = A * x * x;
                 B1 = B * x * y;
-                C1 = C * y * y;
+                C1 = C * y * y;                
                 D = ((2 * A * h) + (k * B)) * x;
                 E = ((2 * C * k) + (B * h)) * y;
                 F = (A * h2) + (B * h * k) + (C * k2) - 1;
-
+                
                 res = A1 + B1 + C1 - D - E + F;
                 //Console.WriteLine(res.ToString() + "\t" + x + "\t" + y);
-                if (sign != Math.Sign(res))
+                if (sign != Math.Sign(res) )
                 {
                     if (!float.IsInfinity(m))
                     {
@@ -6074,7 +6138,7 @@ namespace cgmSvg
                         intercection.Y = y;
                     }
                     solved = true;
-                    break;
+                    break;                    
                 }
 
                 intercection.X = x;
@@ -6089,14 +6153,14 @@ namespace cgmSvg
 
         public PointF solve2Pt_arc_c(PointF a, PointF b, PointF c, int xMax)
         {
-
+            
             double a1, a2;
 
-            float m1, m2, b1;
+            float m1, m2,  b1;
 
-            double d1 = distance_180(a, b, out a1, out m1, out b1);
+            double d1 = distance_180(a, b, out a1 ,out m1,out b1);
 
-            double d2 = distance_180(b, c, out a2, out m2, out b1);
+            double d2 = distance_180(b, c, out a2,out m2,out b1);
 
             PointF D = midPoint(a, b);
             PointF E = midPoint(b, c);
@@ -6111,17 +6175,17 @@ namespace cgmSvg
             int aa = 0;
             float bb = 0;
             PointF intecection = new PointF();
-            foreach (float x in domain)
+            foreach( float x in domain)
             {
 
 
                 float ya = m1 * (x - D.X) + D.Y;
-                float yb = m2 * (x - E.X) + E.Y;
-
+                float yb =  m2*(x - E.X) + E.Y;
+                
                 //Console.WriteLine(String.Format("{0}\t{1}\t{2}\t{3}", x, ya, yb, (ya - yb)));
-                if (x > 0)
+                if(x > 0)
                 {
-                    if (s0 != Math.Sign(ya - yb))
+                    if( s0 !=  Math.Sign(ya - yb))
                     {
                         //Console.WriteLine(String.Format("{0}\t{1}\t{2}\t{3}", x, ya, yb, (ya - yb)));
                         //Console.WriteLine(bb - (ya - yb));
@@ -6132,13 +6196,13 @@ namespace cgmSvg
                 }
                 intecection.X = (int)x;
                 intecection.Y = (int)ya;
-
+            
                 bb = ya - yb;
             }
             return intecection;
         }
 
-        public void getArcParams_ell(float angle_dir, float angle_LEN, out char path_len, out char dir)
+        public void getArcParams_ell(float angle_dir,  float angle_LEN, out char path_len, out char dir)
         {
 
             path_len = '0';
@@ -6156,7 +6220,7 @@ namespace cgmSvg
             if (angle_LEN < 0)
             {
                 flipped2 = true;
-                angle_LEN = 360 + angle_LEN;
+                angle_LEN = 360 + angle_LEN;                
             }
             if (flipped == false)
             {
@@ -6169,12 +6233,12 @@ namespace cgmSvg
                 else if (angle_dir > 90 && angle_dir < 180)
                 {
                     path_len = angle_LEN < 180 ? '0' : '1';
-                    dir = '1';
+                    dir = '1';   
                 }
                 else if (angle_dir > 0 && angle_dir < 90)
                 {
                     path_len = angle_LEN < 180 ? '0' : '1';
-                    dir = '1';
+                    dir = '1';                    
                 }
                 else if (angle_dir > 270 && angle_dir < 360)
                 {
@@ -6208,7 +6272,7 @@ namespace cgmSvg
                 {
                     path_len = '1';
                     dir = '0';
-                }
+                }        
                 else if (angle_dir == 360)
                 {
                     path_len = '0';
@@ -6238,30 +6302,30 @@ namespace cgmSvg
                     path_len = angle_LEN < 180 ? '1' : '0';
                     dir = '0';
                 }
-                else if (angle_dir == 270)
-                {
-                    dir = '0';
-                    path_len = angle_LEN < 180 ? '1' : '0';
+                else if (angle_dir == 270) 
+                {               
+                        dir = '0';
+                        path_len = angle_LEN < 180 ? '1' : '0';                                        
                 }
-                else if (angle_dir == 180)
+                else if (angle_dir == 180) 
                 {
                     dir = '0';
                 }
                 else if (angle_dir == 90)
                 {
                     dir = '1';
-
+                    
                 }
-                else if (angle_dir == 360)
+                else if (angle_dir == 360) 
                 {
                     dir = '0';
                 }
-
+                
 
             }
         }
-
-        public void getArcParams_ell_xrs(float angle_dir, float angle_dir2, float angle_dir3, out char path_len, out char dir)
+        
+        public void getArcParams_ell_xrs(float angle_dir, float angle_dir2, float angle_dir3, out char path_len, out char dir) 
         {
             float alen = angle_dir;
             if (angle_dir2 > 0)
@@ -6270,10 +6334,10 @@ namespace cgmSvg
                 {
                     if (alen < 0)
                     {
-                        if (Math.Abs(angle_dir) < 180 & Math.Abs(angle_dir3) < 180 && (angle_dir3 < 0))
+                        if (Math.Abs(angle_dir) < 180 & Math.Abs(angle_dir3) < 180  && (angle_dir3 < 0))
                         {
                             path_len = '0';
-                            dir = '0';
+                            dir= '0';
                         }
                         else
                         {
@@ -6309,7 +6373,7 @@ namespace cgmSvg
                                 path_len = alen < 180 ? '0' : '1';
                                 dir = angle_dir < 0 ? '0' : '1';
                             }
-
+                            
                         }
 
                     }
@@ -6345,7 +6409,7 @@ namespace cgmSvg
                 }
                 else
                 {
-
+                    
                     if (angle_dir3 > 0)
                     {
                         path_len = angle_dir3 < 180 ? '0' : '1';
@@ -6361,15 +6425,15 @@ namespace cgmSvg
                         path_len = alen <= 180 ? '1' : '0';
                         dir = angle_dir < 0 ? '1' : '0';
                     }
-
+                    
 
                 }
             }
-
-
+            
+            
         }
-
-        public void getArcParams_cir(float angle_dir, out char path_len, out char dir)
+        
+        public void getArcParams_cir(float angle_dir, out char path_len, out char dir )
         {
             path_len = '0';
             dir = '0';
@@ -6382,7 +6446,7 @@ namespace cgmSvg
             angle_dir = (float)Math.Round(angle_dir, 3);
             if (flipped == false)
             {
-                if (angle_dir == 0)
+                if(angle_dir == 0)
                 {
                     path_len = '1';
                     dir = '0';
@@ -6407,7 +6471,7 @@ namespace cgmSvg
                     path_len = '0';
                     dir = '0';
                 }
-                else if (angle_dir == 90)
+                else if (angle_dir  == 90 )
                 {
                     path_len = '0';
                     dir = '1';
@@ -6436,12 +6500,9 @@ namespace cgmSvg
                     path_len = '0';
                     dir = '0';
                 }
-
+             
             }
         }
-    
-    
+        
     }
-
 }
-
