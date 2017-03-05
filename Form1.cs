@@ -1263,7 +1263,7 @@ namespace cgm_decoder
                     }
                     else
                     {
-                        path.Attributes.Append(cgm_svg.CreateAttribute("alignment-baseline")).Value = "";
+                       // path.Attributes.Append(cgm_svg.CreateAttribute("alignment-baseline")).Value = "";
                     }
 
                     foreach (string[] txtAppend in cgmElement.appendedText)
@@ -1369,7 +1369,7 @@ namespace cgm_decoder
                     }
                     else
                     {
-                        path.Attributes.Append(cgm_svg.CreateAttribute("alignment-baseline")).Value = "";
+                       // path.Attributes.Append(cgm_svg.CreateAttribute("alignment-baseline")).Value = "";
 
                     }
 
@@ -1545,7 +1545,7 @@ namespace cgm_decoder
 
                     path.Attributes["style"].Value += string.Format("stroke-linecap:{0};", cgmElement.lineCap);
                     path.Attributes["style"].Value += string.Format("stroke-linejoin:{0};", cgmElement.lineJoin);
-                    path.Attributes["style"].Value += string.Format("stroke-miterlimit:{0};", cgmElement.mitreLimit);
+                    path.Attributes["style"].Value += string.Format("stroke-miterlimit:{0};", cgmElement.miterLimit);
 
                     //path.Attributes["style"].Value += string.Format("stroke-dashoffset:{0};", "");                    
                     //path.Attributes["style"].Value += string.Format("marker-start:{0};", "");
@@ -1714,7 +1714,7 @@ namespace cgm_decoder
             public string edgedashCapIndicator;
             
             public string metafile_elements;
-            public float mitreLimit;
+            public float miterLimit;
             public string colourSelectionMode;
             public string character_set_list;
             public int colour_precision;
@@ -1763,7 +1763,7 @@ namespace cgm_decoder
                 hatch_id = "1";
                 pattern_idx = "1";
                 isCircle = false;
-                mitreLimit = 4;
+                miterLimit = 4;
                 lineEdgeDefs = new LineEdgeType();
                 end_fig = start_fig = false;
                 vdcType = "integer";
@@ -1798,7 +1798,7 @@ namespace cgm_decoder
                 edgeWidth = strokeWidth = 1f;
                 lineCap = "round";
                 lineJoin = "round";
-                mitreLimit = 1f;
+                miterLimit = 1f;
                 edgeVisibility = false;
                 fill_style = "hollow";
                 lineType = "1";
@@ -4610,7 +4610,7 @@ namespace cgm_decoder
                         line_j = "unspecified";
                         break;
                     case 2:
-                        line_j = "mitre";
+                        line_j = "miter";
                         break;
                     case 3:
                         line_j = "round";
@@ -4642,7 +4642,7 @@ namespace cgm_decoder
                         line_j = "unspecified";
                         break;
                     case 2:
-                        line_j = "mitre";
+                        line_j = "miter";
                         break;
                     case 3:
                         line_j = "round";
@@ -4839,7 +4839,7 @@ namespace cgm_decoder
                 Cgm_Elements.Last().lineType = edge_t.ToString();
                 #endregion
             }
-            else if (elemName == "MITRE LIMIT")
+            else if (elemName == "miter LIMIT")
             {
                 #region MyRegion
 
@@ -4847,7 +4847,7 @@ namespace cgm_decoder
                 br.Read(buffer, 0, buffer.Length);
 
                 float f = Cgm_Elements.Last().bytes_getValue_real(buffer, Cgm_Elements.Last().real_precision);
-                Cgm_Elements.Last().mitreLimit = f;
+                Cgm_Elements.Last().miterLimit = f;
                 #endregion
 
             }
@@ -5503,7 +5503,7 @@ namespace cgm_decoder
                 true_height = lastElem.true_height,                
                 colourTable_start_idx = lastElem.colourTable_start_idx,
                 bgColor = lastElem.bgColor,
-                mitreLimit = lastElem.mitreLimit,
+                miterLimit = lastElem.miterLimit,
                 fill_style = lastElem.fill_style,
                 hatch_style = lastElem.hatch_style,
                 hatch_id =  lastElem.hatch_id,
